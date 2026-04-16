@@ -92,6 +92,20 @@ class ResultsRenderer {
       summaryText += ` A hybrid deployment strategy is suggested — see the combination recommendations below.`;
     }
 
+    // Mention recommended sub-pillars (e.g. ALC/ALD under SPrC)
+    const subRecs = [];
+    for (const r of recommended) {
+      if (r.subPillars) {
+        for (const sub of r.subPillars) {
+          if (sub.recommended) subRecs.push(sub);
+        }
+      }
+    }
+    if (subRecs.length > 0) {
+      const subNames = subRecs.map(s => `<strong>${this._escapeHtml(s.name)}</strong>`);
+      summaryText += ` Within Sovereign Private Cloud, ${subNames.join(' and ')} ${subRecs.length > 1 ? 'are' : 'is'} also relevant for your requirements.`;
+    }
+
     const section = document.createElement('div');
     section.className = 'report-summary';
     section.innerHTML = `
@@ -151,12 +165,67 @@ class ResultsRenderer {
       ${resourcesHtml}
     `;
 
+    // Render sub-pillars (e.g. ALC/ALD under SPrC)
+    if (rec.subPillars && rec.subPillars.length > 0) {
+      const subSection = document.createElement('div');
+      subSection.className = 'sub-pillars-section';
+      subSection.innerHTML = `<h4 class="sub-pillars-heading">📦 Deployment Options</h4>`;
+
+      for (const sub of rec.subPillars) {
+        const subResources = PILLAR_RESOURCES[sub.pillar] || [];
+        let subResourcesHtml = '';
+        if (sub.recommended && subResources.length > 0) {
+          const links = subResources.map(r =>
+            `<li><a href="${this._escapeAttr(r.url)}" target="_blank" rel="noopener noreferrer">${this._escapeHtml(r.title)} ↗</a></li>`
+          ).join('');
+          subResourcesHtml = `
+            <div class="card-resources">
+              <h4>📚 Learn More</h4>
+              <ul>${links}</ul>
+            </div>
+          `;
+        }
+
+        const subCard = document.createElement('div');
+        subCard.className = `sub-pillar-card${sub.recommended ? ' recommended' : ''}`;
+        subCard.innerHTML = `
+          <div class="sub-pillar-header">
+            <span class="sub-pillar-title">${sub.icon} ${this._escapeHtml(sub.name)}</span>
+            ${sub.recommended ? '<span class="result-badge sub-badge">★ Recommended</span>' : ''}
+          </div>
+          <div class="result-score-label">
+            <span>Alignment Score</span>
+            <span>${sub.score}%</span>
+          </div>
+          <div class="result-score-bar">
+            <div class="result-score-fill ${sub.color}" data-width="${sub.score}%" style="width: 0%"></div>
+          </div>
+          <p class="result-description">${this._escapeHtml(sub.description)}</p>
+          <ul class="result-highlights">
+            ${sub.highlights.map(h => `<li>${this._escapeHtml(h)}</li>`).join('')}
+          </ul>
+          ${subResourcesHtml}
+        `;
+        subSection.appendChild(subCard);
+      }
+
+      card.appendChild(subSection);
+    }
+
     return card;
   }
 
   _renderNextSteps(recommendations) {
     const recommended = recommendations.filter(r => r.recommended);
-    const recKeys = recommended.map(r => r.pillar);
+    const recKeys = [];
+    for (const r of recommended) {
+      recKeys.push(r.pillar);
+      if (r.subPillars) {
+        for (const sub of r.subPillars) {
+          if (sub.recommended) recKeys.push(sub.pillar);
+        }
+      }
+    }
 
     const steps = [
       { text: "Review the Microsoft Cloud for Sovereignty documentation", url: "https://learn.microsoft.com/industry/sovereignty/cloud-for-sovereignty", always: true },
@@ -262,6 +331,32 @@ class ResultsRenderer {
           report += `    → ${res.title}\n      ${res.url}\n`;
         });
         report += '\n';
+      }
+
+      // Include sub-pillars (e.g. ALC/ALD under SPrC)
+      if (r.subPillars && r.subPillars.length > 0) {
+        report += '  ── Deployment Options ────────────────────────────────\n\n';
+        r.subPillars.forEach(sub => {
+          const subFilled = Math.round(sub.score / 5);
+          const subBar = '█'.repeat(subFilled) + '░'.repeat(20 - subFilled);
+          report += `    ${sub.name}\n`;
+          report += `    Score: ${sub.score}%  [${subBar}]  ${sub.recommended ? '★ RECOMMENDED' : ''}\n`;
+          report += `    ${sub.description}\n\n`;
+          report += '    Key features:\n';
+          sub.highlights.forEach(h => {
+            report += `      ✓ ${h}\n`;
+          });
+          report += '\n';
+
+          const subResources = PILLAR_RESOURCES[sub.pillar] || [];
+          if (sub.recommended && subResources.length > 0) {
+            report += '    Documentation & resources:\n';
+            subResources.forEach(res => {
+              report += `      → ${res.title}\n        ${res.url}\n`;
+            });
+            report += '\n';
+          }
+        });
       }
     });
 

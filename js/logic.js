@@ -197,8 +197,8 @@ class ScoringEngine {
   getRecommendations() {
     const normalized = this.getNormalizedScores();
 
-    // Build pillar result objects
-    const results = Object.keys(PILLARS).map(key => ({
+    // Build pillar result objects for all five pillars
+    const allResults = Object.keys(PILLARS).map(key => ({
       pillar: key,
       name: PILLARS[key].name,
       icon: PILLARS[key].icon,
@@ -207,10 +207,25 @@ class ScoringEngine {
       score: normalized[key],
       recommended: false,
       description: PILLAR_DESCRIPTIONS[key],
-      highlights: PILLAR_HIGHLIGHTS[key]
+      highlights: PILLAR_HIGHLIGHTS[key],
+      subPillars: []
     }));
 
-    // Sort by score descending
+    // Group ALC and ALD under Sovereign Private Cloud (SPrC)
+    const sprc = allResults.find(r => r.pillar === 'SPrC');
+    const alc  = allResults.find(r => r.pillar === 'ALC');
+    const ald  = allResults.find(r => r.pillar === 'ALD');
+
+    if (sprc) {
+      if (alc) sprc.subPillars.push(alc);
+      if (ald) sprc.subPillars.push(ald);
+
+      // Parent score reflects the best alignment across SPrC, ALC, ALD
+      sprc.score = Math.max(sprc.score, alc ? alc.score : 0, ald ? ald.score : 0);
+    }
+
+    // Top-level results: only SPC, SPrC, NPC
+    const results = allResults.filter(r => r.pillar !== 'ALC' && r.pillar !== 'ALD');
     results.sort((a, b) => b.score - a.score);
 
     // Determine recommendations:
@@ -224,6 +239,18 @@ class ScoringEngine {
       }
     }
 
+    // Mark sub-pillars as recommended if they meet the threshold
+    if (sprc) {
+      for (const sub of sprc.subPillars) {
+        if (sub.score >= topScore - threshold && sub.score > 20) {
+          sub.recommended = true;
+          sprc.recommended = true;
+        }
+      }
+      // Sort sub-pillars by score descending
+      sprc.subPillars.sort((a, b) => b.score - a.score);
+    }
+
     return results;
   }
 
@@ -231,6 +258,17 @@ class ScoringEngine {
   getHybridRecommendation(results) {
     const rec = results.filter(r => r.recommended);
     const pillarKeys = rec.map(r => r.pillar);
+
+    // Also collect recommended sub-pillar keys (ALC, ALD under SPrC)
+    for (const r of rec) {
+      if (r.subPillars) {
+        for (const sub of r.subPillars) {
+          if (sub.recommended) {
+            pillarKeys.push(sub.pillar);
+          }
+        }
+      }
+    }
 
     const combos = [];
 
