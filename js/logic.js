@@ -1,0 +1,277 @@
+/* =============================================
+   Scoring & Logic Engine
+   
+   Computes weighted pillar scores from user
+   answers, then determines recommendations.
+   ============================================= */
+
+const PILLARS = {
+  SPC:  { key: "SPC",  name: "Sovereign Public Cloud",       color: "blue",   icon: "☁️" },
+  SPrC: { key: "SPrC", name: "Sovereign Private Cloud",      color: "purple", icon: "🔒" },
+  NPC:  { key: "NPC",  name: "National Partner Cloud",       color: "teal",   icon: "🏛️" },
+  ALC:  { key: "ALC",  name: "Azure Local – Connected",      color: "green",  icon: "🔗" },
+  ALD:  { key: "ALD",  name: "Azure Local – Disconnected",   color: "orange", icon: "🛡️" }
+};
+
+// Descriptions shown on the results page
+const PILLAR_DESCRIPTIONS = {
+  SPC: "Azure public cloud enhanced with sovereign controls — data residency guarantees, GDPR/FADP/FINMA/NIS2 alignment, Customer Managed Keys, confidential computing, and operational sovereignty features. Best for organizations that want the breadth of Azure services with strong sovereign guardrails.",
+  SPrC: "A fully isolated, in-country cloud operated by a trusted national entity or government. Maximum physical and logical isolation for classified or highly sensitive workloads that cannot share infrastructure with any other tenant.",
+  NPC: "Sovereign cloud regions delivered and operated by certified national partners with local operations, local support, and full alignment with national regulatory frameworks. Combines Azure technology with national oversight.",
+  ALC: "Azure Local with cloud-connected management — Azure Arc integration, Policy, RBAC, Defender, Monitor, and GitOps governed from Azure. Run Azure-consistent workloads on your hardware with a cloud control plane.",
+  ALD: "Azure Local for fully offline or intermittently connected environments. No dependency on the Azure control plane. Designed for high-security, isolated, classified, or edge scenarios requiring zero external connectivity."
+};
+
+// Key features per pillar (shown as bullet points)
+const PILLAR_HIGHLIGHTS = {
+  SPC: [
+    "Full breadth of Azure PaaS/IaaS services",
+    "Data residency with EU/Swiss Data Boundary",
+    "Customer Managed Keys & Confidential Computing",
+    "Elastic scaling with global capacity",
+    "Microsoft-managed operations"
+  ],
+  SPrC: [
+    "Physically isolated infrastructure",
+    "Dedicated control plane — no shared tenancy",
+    "Operated by national entity or government",
+    "Supports classified & TOP SECRET workloads",
+    "Full patch and update vetting"
+  ],
+  NPC: [
+    "Azure technology with national partner operations",
+    "Subject to local jurisdiction only",
+    "In-country support and local-language services",
+    "Regulatory alignment (GDPR, FADP, FINMA, NIS2)",
+    "Government and financial sector certifications"
+  ],
+  ALC: [
+    "Azure Arc-managed on-premises infrastructure",
+    "Azure Policy, RBAC, and GitOps from the cloud",
+    "Microsoft Defender & Monitor on local hardware",
+    "Azure-consistent VMs and AKS locally",
+    "Cloud control plane with local compute"
+  ],
+  ALD: [
+    "Fully air-gapped or intermittently connected",
+    "Zero dependency on Azure control plane",
+    "Self-contained local operations",
+    "Suitable for classified and tactical workloads",
+    "Edge and remote site deployments"
+  ]
+};
+
+// Microsoft Learn & documentation links per pillar
+const PILLAR_RESOURCES = {
+  SPC: [
+    { title: "Microsoft Cloud for Sovereignty Overview", url: "https://learn.microsoft.com/industry/sovereignty/cloud-for-sovereignty" },
+    { title: "Azure sovereign controls & data residency", url: "https://learn.microsoft.com/industry/sovereignty/sovereignty-capabilities" },
+    { title: "EU Data Boundary for the Microsoft Cloud", url: "https://learn.microsoft.com/privacy/eudb/eu-data-boundary-learn" },
+    { title: "Azure Customer Managed Keys", url: "https://learn.microsoft.com/azure/security/fundamentals/encryption-models" },
+    { title: "Azure Confidential Computing", url: "https://learn.microsoft.com/azure/confidential-computing/overview" },
+    { title: "Azure compliance documentation", url: "https://learn.microsoft.com/azure/compliance/" },
+    { title: "Microsoft Cloud for Sovereignty – Policy Portfolio", url: "https://learn.microsoft.com/industry/sovereignty/policy-portfolio-overview" }
+  ],
+  SPrC: [
+    { title: "Microsoft Cloud for Sovereignty Overview", url: "https://learn.microsoft.com/industry/sovereignty/cloud-for-sovereignty" },
+    { title: "Sovereign Landing Zone overview", url: "https://learn.microsoft.com/industry/sovereignty/slz-overview" },
+    { title: "Azure Dedicated Host", url: "https://learn.microsoft.com/azure/virtual-machines/dedicated-hosts" },
+    { title: "Azure confidential computing for isolation", url: "https://learn.microsoft.com/azure/confidential-computing/overview" },
+    { title: "Azure Private Link", url: "https://learn.microsoft.com/azure/private-link/private-link-overview" },
+    { title: "Key management in Azure", url: "https://learn.microsoft.com/azure/security/fundamentals/key-management" }
+  ],
+  NPC: [
+    { title: "Microsoft Cloud for Sovereignty Overview", url: "https://learn.microsoft.com/industry/sovereignty/cloud-for-sovereignty" },
+    { title: "Azure geographies and regions", url: "https://learn.microsoft.com/azure/reliability/availability-zones-overview" },
+    { title: "Azure compliance offerings by region", url: "https://learn.microsoft.com/azure/compliance/" },
+    { title: "Microsoft GDPR commitments", url: "https://learn.microsoft.com/compliance/regulatory/gdpr" },
+    { title: "Azure in government", url: "https://learn.microsoft.com/azure/azure-government/documentation-government-welcome" },
+    { title: "Find a Microsoft partner", url: "https://partner.microsoft.com/partnership/find-a-partner" }
+  ],
+  ALC: [
+    { title: "Azure Local overview", url: "https://learn.microsoft.com/azure/azure-local/overview" },
+    { title: "Azure Arc overview", url: "https://learn.microsoft.com/azure/azure-arc/overview" },
+    { title: "Azure Arc-enabled servers", url: "https://learn.microsoft.com/azure/azure-arc/servers/overview" },
+    { title: "Azure Policy for Azure Arc", url: "https://learn.microsoft.com/azure/azure-arc/servers/policy-reference" },
+    { title: "Deploy AKS on Azure Local", url: "https://learn.microsoft.com/azure/aks/hybrid/aks-overview" },
+    { title: "Microsoft Defender for Cloud with Arc", url: "https://learn.microsoft.com/azure/defender-for-cloud/defender-for-cloud-introduction" },
+    { title: "Azure Monitor for hybrid environments", url: "https://learn.microsoft.com/azure/azure-monitor/overview" }
+  ],
+  ALD: [
+    { title: "Azure Local overview", url: "https://learn.microsoft.com/azure/azure-local/overview" },
+    { title: "Azure Local disconnected operations", url: "https://learn.microsoft.com/azure/azure-local/manage/disconnected-operations-overview" },
+    { title: "Azure Local network requirements", url: "https://learn.microsoft.com/azure/azure-local/concepts/firewall-requirements" },
+    { title: "Azure Local security features", url: "https://learn.microsoft.com/azure/azure-local/concepts/security-features" },
+    { title: "Plan Azure Local deployment", url: "https://learn.microsoft.com/azure/azure-local/deploy/deployment-planning" },
+    { title: "Azure Arc overview", url: "https://learn.microsoft.com/azure/azure-arc/overview" }
+  ]
+};
+
+// General sovereignty resources (always shown)
+const GENERAL_RESOURCES = [
+  { title: "Microsoft Trust Center", url: "https://www.microsoft.com/trust-center" },
+  { title: "Microsoft Service Trust Portal", url: "https://servicetrust.microsoft.com/" },
+  { title: "Azure compliance documentation", url: "https://learn.microsoft.com/azure/compliance/" },
+  { title: "Microsoft Cloud for Sovereignty", url: "https://learn.microsoft.com/industry/sovereignty/cloud-for-sovereignty" },
+  { title: "Azure security best practices", url: "https://learn.microsoft.com/azure/security/fundamentals/best-practices-and-patterns" },
+  { title: "Contact Microsoft Sales", url: "https://azure.microsoft.com/contact/" }
+];
+
+/**
+ * ScoringEngine — accumulates weighted scores per pillar
+ * based on user answers (yes/no) and question weights.
+ */
+class ScoringEngine {
+  constructor(questions) {
+    this.questions = questions;
+    this.answers = [];        // Array of { questionId, answer: 'yes'|'no' }
+    this.scores = this._initScores();
+    this.maxPossible = this._computeMaxPossible();
+  }
+
+  _initScores() {
+    return { SPC: 0, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 };
+  }
+
+  /** Theoretical maximum if every question answered 'yes' with max pillar contribution */
+  _computeMaxPossible() {
+    const max = this._initScores();
+    for (const q of this.questions) {
+      for (const pillar of Object.keys(max)) {
+        const yesVal = (q.onYes[pillar] || 0) * q.weight;
+        const noVal  = (q.onNo[pillar] || 0) * q.weight;
+        max[pillar] += Math.max(yesVal, noVal);
+      }
+    }
+    return max;
+  }
+
+  /** Record an answer and update scores */
+  recordAnswer(questionId, answer) {
+    const question = this.questions.find(q => q.id === questionId);
+    if (!question) return;
+
+    this.answers.push({ questionId, answer });
+
+    const mapping = answer === 'yes' ? question.onYes : question.onNo;
+    for (const pillar of Object.keys(this.scores)) {
+      this.scores[pillar] += (mapping[pillar] || 0) * question.weight;
+    }
+  }
+
+  /** Undo the last answer */
+  undoLast() {
+    if (this.answers.length === 0) return null;
+
+    const last = this.answers.pop();
+    const question = this.questions.find(q => q.id === last.questionId);
+    if (!question) return null;
+
+    const mapping = last.answer === 'yes' ? question.onYes : question.onNo;
+    for (const pillar of Object.keys(this.scores)) {
+      this.scores[pillar] -= (mapping[pillar] || 0) * question.weight;
+    }
+    return last;
+  }
+
+  /** Get normalized scores (0-100) */
+  getNormalizedScores() {
+    const normalized = {};
+    for (const pillar of Object.keys(this.scores)) {
+      const maxVal = this.maxPossible[pillar] || 1;
+      normalized[pillar] = Math.round((this.scores[pillar] / maxVal) * 100);
+    }
+    return normalized;
+  }
+
+  /** Get raw scores */
+  getRawScores() {
+    return { ...this.scores };
+  }
+
+  /**
+   * Generate final recommendations.
+   * Returns an array sorted by score (descending), each with:
+   *   { pillar, name, score, normalizedScore, recommended, description, highlights }
+   */
+  getRecommendations() {
+    const normalized = this.getNormalizedScores();
+
+    // Build pillar result objects
+    const results = Object.keys(PILLARS).map(key => ({
+      pillar: key,
+      name: PILLARS[key].name,
+      icon: PILLARS[key].icon,
+      color: PILLARS[key].color,
+      rawScore: this.scores[key],
+      score: normalized[key],
+      recommended: false,
+      description: PILLAR_DESCRIPTIONS[key],
+      highlights: PILLAR_HIGHLIGHTS[key]
+    }));
+
+    // Sort by score descending
+    results.sort((a, b) => b.score - a.score);
+
+    // Determine recommendations:
+    // Primary: top scorer. Also recommend anything within 15 points of the top.
+    const topScore = results[0].score;
+    const threshold = 15;
+
+    for (const r of results) {
+      if (r.score >= topScore - threshold && r.score > 20) {
+        r.recommended = true;
+      }
+    }
+
+    return results;
+  }
+
+  /** Detect if a hybrid combination should be recommended */
+  getHybridRecommendation(results) {
+    const rec = results.filter(r => r.recommended);
+    const pillarKeys = rec.map(r => r.pillar);
+
+    const combos = [];
+
+    // Azure Public + Azure Local Connected (classic hybrid)
+    if (pillarKeys.includes('SPC') && pillarKeys.includes('ALC')) {
+      combos.push({
+        name: "Hybrid: Azure Public + Azure Local Connected",
+        description: "Combine Azure's public cloud breadth with on-premises Azure Local infrastructure managed via Azure Arc. Ideal for organizations needing elastic cloud capacity alongside sovereign local compute."
+      });
+    }
+
+    // Sovereign Private + Azure Local Disconnected (maximum isolation)
+    if (pillarKeys.includes('SPrC') && pillarKeys.includes('ALD')) {
+      combos.push({
+        name: "Maximum Isolation: Private Cloud + Disconnected Local",
+        description: "The highest isolation posture — fully isolated private cloud paired with air-gapped local operations. Designed for classified, defense, or critical infrastructure workloads."
+      });
+    }
+
+    // National Partner + Azure Local Connected
+    if (pillarKeys.includes('NPC') && pillarKeys.includes('ALC')) {
+      combos.push({
+        name: "National Sovereignty + Local Compute",
+        description: "National partner-operated cloud with Azure Local on-premises nodes. Maintains full national jurisdiction while extending compute to your own facilities."
+      });
+    }
+
+    // Azure Local Connected + Disconnected (mixed connectivity)
+    if (pillarKeys.includes('ALC') && pillarKeys.includes('ALD')) {
+      combos.push({
+        name: "Mixed Connectivity: Connected + Disconnected Local",
+        description: "Deploy Azure Local in both connected and disconnected modes across different sites — cloud-managed at headquarters, fully offline at remote or classified locations."
+      });
+    }
+
+    return combos;
+  }
+
+  /** Reset all state */
+  reset() {
+    this.answers = [];
+    this.scores = this._initScores();
+  }
+}

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Microsoft Sovereign Cloud Explorer</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@300;400;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <svg class="ms-logo" viewBox="0 0 23 23" width="20" height="20">
+          <rect x="1" y="1" width="10" height="10" fill="#f25022"/>
+          <rect x="12" y="1" width="10" height="10" fill="#7fba00"/>
+          <rect x="1" y="12" width="10" height="10" fill="#00a4ef"/>
+          <rect x="12" y="12" width="10" height="10" fill="#ffb900"/>
+        </svg>
+        <span class="header-title">Sovereign Cloud Explorer</span>
+      </div>
+      <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode">
+        <svg class="icon-sun" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/>
+        </svg>
+      </button>
+    </header>
+
+    <!-- Welcome Screen -->
+    <section id="welcomeScreen" class="screen active">
+      <div class="welcome-card">
+        <div class="welcome-icon">
+          <svg viewBox="0 0 80 80" width="80" height="80">
+            <rect x="2" y="2" width="34" height="34" rx="4" fill="#0078d4"/>
+            <rect x="44" y="2" width="34" height="34" rx="4" fill="#50e6ff"/>
+            <rect x="2" y="44" width="34" height="34" rx="4" fill="#d83b01"/>
+            <rect x="44" y="44" width="34" height="34" rx="4" fill="#ffb900"/>
+          </svg>
+        </div>
+        <h1>Microsoft Sovereign Cloud Explorer</h1>
+        <p class="welcome-subtitle">Discover the right sovereign cloud architecture for your organization</p>
+        <p class="welcome-desc">Answer a series of questions by swiping <strong>right for Yes</strong> or <strong>left for No</strong>. We'll recommend the best sovereign cloud option across Microsoft's offerings.</p>
+        <div class="swipe-hint">
+          <span class="hint-left">← No</span>
+          <span class="hint-or">swipe or tap</span>
+          <span class="hint-right">Yes →</span>
+        </div>
+        <button class="btn-primary" id="startBtn">Begin Assessment</button>
+      </div>
+    </section>
+
+    <!-- Question Screen -->
+    <section id="questionScreen" class="screen">
+      <div class="progress-container">
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <span class="progress-text" id="progressText">0 / 0</span>
+      </div>
+
+      <div class="category-badge" id="categoryBadge"></div>
+
+      <div class="card-container" id="cardContainer">
+        <!-- Cards are injected here -->
+      </div>
+
+      <div class="swipe-buttons">
+        <button class="btn-swipe btn-no" id="btnNo" aria-label="No">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+        <button class="btn-swipe btn-undo" id="btnUndo" aria-label="Undo" disabled>
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 105.64-11.36L1 10"/>
+          </svg>
+        </button>
+        <button class="btn-swipe btn-yes" id="btnYes" aria-label="Yes">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </button>
+      </div>
+    </section>
+
+    <!-- Results Screen -->
+    <section id="resultsScreen" class="screen">
+      <div id="resultsContent"></div>
+    </section>
+  </div>
+
+  <!-- Scripts (loaded in order) -->
+  <script src="js/questions.js"></script>
+  <script src="js/logic.js"></script>
+  <script src="js/swipe.js"></script>
+  <script src="js/results.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
