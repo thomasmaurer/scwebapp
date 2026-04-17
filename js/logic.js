@@ -255,19 +255,15 @@ class ScoringEngine {
     // NPC qualification gate: only recommend if both gates are met
     const npcQualified = this.npcGates.country && this.npcGates.publicSector;
     const npc = results.find(r => r.pillar === 'NPC');
-    if (npc) {
-      if (!npcQualified && npc.recommended) {
-        npc.recommended = false;
-        npc.disqualified = true;
-        npc.disqualifyReason = !this.npcGates.country && !this.npcGates.publicSector
-          ? "National partner clouds (Bleu and Delos Cloud) are exclusively available to qualified public-sector customers in France and Germany."
-          : !this.npcGates.country
-            ? "National partner clouds are currently available only in France (Bleu) and Germany (Delos Cloud). Your organization is not based in an eligible country."
-            : "National partner clouds (Bleu and Delos Cloud) are exclusively available to qualified public-sector entities. Your organization does not meet the public-sector eligibility criteria.";
-      } else if (!npcQualified) {
-        npc.disqualified = true;
-        npc.disqualifyReason = "National partner clouds (Bleu and Delos Cloud) are available only to qualified public-sector customers in France and Germany.";
-      }
+    if (npc && !npcQualified) {
+      npc.recommended = false;
+      npc.score = 0;
+      npc.disqualified = true;
+      npc.disqualifyReason = !this.npcGates.country && !this.npcGates.publicSector
+        ? "National partner clouds (Bleu and Delos Cloud) are exclusively available to qualified public-sector customers in France and Germany."
+        : !this.npcGates.country
+          ? "National partner clouds are currently available only in France (Bleu) and Germany (Delos Cloud). Your organization is not based in an eligible country."
+          : "National partner clouds (Bleu and Delos Cloud) are exclusively available to qualified public-sector entities. Your organization does not meet the public-sector eligibility criteria.";
     }
 
     // Mark sub-pillars as recommended if they meet the threshold
