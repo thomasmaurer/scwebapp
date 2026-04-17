@@ -1,23 +1,61 @@
 /* =============================================
-   Sovereignty Question Set
-   Each question targets one or more pillars via
-   the scoring weights in logic.js.
-   
+   Geo Options, Auto-Scores & Statement Pool
+
+   GEO_OPTIONS     — selectable regions
+   GEO_AUTO_SCORES — silent compliance adjustments
+   STATEMENTS      — dynamic card pool with flow rules
+
    Pillars:
-     SPC  = Sovereign Public Cloud
-     SPrC = Sovereign Private Cloud
+     SPC  = Public Cloud (with controls)
+     SPrC = Private Cloud
      NPC  = National Partner Cloud
      ALC  = Azure Local – Connected
      ALD  = Azure Local – Disconnected
    ============================================= */
 
-const QUESTIONS = [
-  // ── Data Residency ──────────────────────────
+const GEO_OPTIONS = [
+  { key: "EU",     label: "Europe (EU)",         icon: "🇪🇺" },
+  { key: "USA",    label: "United States",       icon: "🇺🇸" },
+  { key: "CA",     label: "Canada",              icon: "🇨🇦" },
+  { key: "LATAM",  label: "Latin America",       icon: "🌎" },
+  { key: "MEA",    label: "Middle East & Africa", icon: "🌍" },
+  { key: "UK",     label: "United Kingdom",      icon: "🇬🇧" },
+  { key: "CN",     label: "China",               icon: "🇨🇳" },
+  { key: "APAC",   label: "Asia-Pacific",        icon: "🌏" }
+];
+
+/**
+ * Silent score adjustments auto-applied when a geo is selected.
+ * Reflects regional compliance (GDPR, NIS2, FADP, etc.) without cards.
+ */
+const GEO_AUTO_SCORES = {
+  EU:    { SPC: 6, SPrC: 4, NPC: 4, ALC: 0, ALD: 0 },
+  USA:   { SPC: 4, SPrC: 2, NPC: 0, ALC: 0, ALD: 0 },
+  CA:    { SPC: 4, SPrC: 2, NPC: 0, ALC: 0, ALD: 0 },
+  LATAM: { SPC: 3, SPrC: 1, NPC: 0, ALC: 0, ALD: 0 },
+  MEA:   { SPC: 3, SPrC: 2, NPC: 0, ALC: 0, ALD: 0 },
+  UK:    { SPC: 5, SPrC: 3, NPC: 0, ALC: 0, ALD: 0 },
+  CN:    { SPC: 2, SPrC: 4, NPC: 0, ALC: 2, ALD: 2 },
+  APAC:  { SPC: 3, SPrC: 2, NPC: 0, ALC: 0, ALD: 0 }
+};
+
+/**
+ * Statements pool — concise, skimmable.
+ *
+ * Each entry:
+ *   id, category, statement, context, weight, onYes, onNo
+ *   requires? — { geo: [...] } and/or { answeredYes: [...] }
+ *   skippedBy? — { answeredYes: [...] } or { answeredNo: [...] }
+ *   npcGate?   — "country" | "publicSector"
+ */
+const STATEMENTS = [
+
+  // ── Data & Residency ────────────────────────
   {
     id: 1,
     category: "Data Residency",
-    text: "Must all customer data remain within a specific country's borders at all times?",
-    context: "Including storage, processing, backups, and disaster recovery.",
+    statement: "All data must stay within national borders",
+    context: "Including storage, processing, backups, and disaster recovery — no cross-border transfers.",
     weight: 3,
     onYes: { SPC: 2, SPrC: 3, NPC: 3, ALC: 1, ALD: 2 },
     onNo:  { SPC: 2, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
@@ -25,84 +63,48 @@ const QUESTIONS = [
   {
     id: 2,
     category: "Data Residency",
-    text: "Do you require metadata (telemetry, logs, support data) to also stay in-country?",
-    context: "Some sovereign regulations extend beyond primary data to include operational metadata.",
+    statement: "Metadata and telemetry must also remain in-country",
+    context: "Logs, support tickets, and operational metadata cannot leave national borders.",
     weight: 2,
     onYes: { SPC: 1, SPrC: 3, NPC: 3, ALC: 1, ALD: 2 },
-    onNo:  { SPC: 2, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
+    onNo:  { SPC: 2, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 },
+    requires: { answeredYes: [1] }
   },
   {
     id: 3,
     category: "Data Residency",
-    text: "Is multi-region replication required, but only within national boundaries?",
-    context: "High-availability across zones while never crossing borders.",
+    statement: "Multi-region replication is needed, but only within the country",
+    context: "High availability across zones without ever crossing national boundaries.",
     weight: 2,
     onYes: { SPC: 2, SPrC: 2, NPC: 3, ALC: 0, ALD: 0 },
-    onNo:  { SPC: 1, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
+    onNo:  { SPC: 1, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 },
+    requires: { answeredYes: [1] }
   },
 
-  // ── Regulatory Requirements ─────────────────
+  // ── Operational Control ─────────────────────
   {
     id: 4,
-    category: "Regulatory Compliance",
-    text: "Are you subject to GDPR with strict data localization obligations?",
-    context: "General Data Protection Regulation – EU data protection framework.",
-    weight: 2,
-    onYes: { SPC: 3, SPrC: 2, NPC: 2, ALC: 0, ALD: 0 },
-    onNo:  { SPC: 1, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
-  },
-  {
-    id: 5,
-    category: "Regulatory Compliance",
-    text: "Must you comply with Swiss FADP/FINMA requirements?",
-    context: "Swiss Federal Act on Data Protection and financial regulatory mandates.",
-    weight: 2,
-    onYes: { SPC: 2, SPrC: 2, NPC: 3, ALC: 0, ALD: 0 },
-    onNo:  { SPC: 1, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
-  },
-  {
-    id: 6,
-    category: "Regulatory Compliance",
-    text: "Does your organization fall under NIS2 critical infrastructure requirements?",
-    context: "EU directive for network and information systems security of essential services.",
-    weight: 2,
-    onYes: { SPC: 2, SPrC: 3, NPC: 2, ALC: 1, ALD: 1 },
-    onNo:  { SPC: 1, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
-  },
-  {
-    id: 7,
-    category: "Regulatory Compliance",
-    text: "Do you require compliance with national defense or classified information standards?",
-    context: "Military, intelligence, or government secret classifications.",
-    weight: 3,
-    onYes: { SPC: 0, SPrC: 3, NPC: 1, ALC: 1, ALD: 3 },
-    onNo:  { SPC: 2, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
-  },
-
-  // ── Operational Sovereignty ─────────────────
-  {
-    id: 8,
-    category: "Operational Sovereignty",
-    text: "Must cloud operations (admin, support, engineering) be performed exclusively by nationals?",
-    context: "No foreign personnel can access or manage the environment.",
+    category: "Operational Control",
+    statement: "Cloud operations must be performed by national personnel only",
+    context: "No foreign administrators, support engineers, or operators can access the environment.",
     weight: 3,
     onYes: { SPC: 0, SPrC: 3, NPC: 3, ALC: 0, ALD: 2 },
     onNo:  { SPC: 3, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
   },
   {
-    id: 9,
-    category: "Operational Sovereignty",
-    text: "Do you need to control or approve all software updates and patches before deployment?",
-    context: "Vetting updates for sovereignty or supply-chain security.",
+    id: 5,
+    category: "Operational Control",
+    statement: "We must vet and approve all software updates before deployment",
+    context: "Full control over patches and updates for supply-chain security.",
     weight: 2,
     onYes: { SPC: 1, SPrC: 3, NPC: 2, ALC: 2, ALD: 3 },
     onNo:  { SPC: 2, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
   },
   {
-    id: 10,
-    category: "Operational Sovereignty",
-    text: "Do you require a dedicated, isolated control plane not shared with other tenants?",
-    context: "Your own management infrastructure separate from the public cloud.",
+    id: 6,
+    category: "Operational Control",
+    statement: "A dedicated, isolated control plane is required — no shared tenancy",
+    context: "Your own management infrastructure, fully separated from other tenants.",
     weight: 3,
     onYes: { SPC: 0, SPrC: 3, NPC: 2, ALC: 2, ALD: 3 },
     onNo:  { SPC: 3, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
@@ -110,269 +112,251 @@ const QUESTIONS = [
 
   // ── Encryption & Key Management ─────────────
   {
-    id: 11,
-    category: "Encryption & Key Management",
-    text: "Do you require Customer Managed Keys (CMK) for all data-at-rest encryption?",
-    context: "You control the encryption keys rather than Microsoft.",
+    id: 7,
+    category: "Encryption & Keys",
+    statement: "We need full control over encryption keys (Customer Managed Keys)",
+    context: "Your organization controls the keys, not the cloud provider.",
     weight: 2,
     onYes: { SPC: 3, SPrC: 2, NPC: 2, ALC: 1, ALD: 1 },
     onNo:  { SPC: 1, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
   },
   {
-    id: 12,
-    category: "Encryption & Key Management",
-    text: "Do you need Hold Your Own Key (HYOK) with on-premises HSM integration?",
-    context: "Cryptographic keys never leave your physical premises.",
+    id: 8,
+    category: "Encryption & Keys",
+    statement: "Encryption keys must never leave our physical premises (on-prem HSM)",
+    context: "Hardware security modules hosted on-site — keys stay with you at all times.",
     weight: 3,
     onYes: { SPC: 2, SPrC: 3, NPC: 2, ALC: 2, ALD: 3 },
-    onNo:  { SPC: 2, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
+    onNo:  { SPC: 2, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 },
+    requires: { answeredYes: [7] }
   },
   {
-    id: 13,
-    category: "Encryption & Key Management",
-    text: "Is confidential computing (encrypted in-use data via hardware enclaves) a requirement?",
-    context: "AMD SEV-SNP, Intel SGX, or similar TEE technologies.",
+    id: 9,
+    category: "Encryption & Keys",
+    statement: "Confidential computing is required — data encrypted even while in use",
+    context: "Hardware enclaves (AMD SEV-SNP, Intel SGX) protect data during processing.",
     weight: 2,
     onYes: { SPC: 3, SPrC: 2, NPC: 1, ALC: 1, ALD: 1 },
     onNo:  { SPC: 1, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
   },
 
-  // ── Isolation & Network Controls ────────────
+  // ── Isolation & Network ─────────────────────
   {
-    id: 14,
+    id: 10,
     category: "Isolation & Network",
-    text: "Do you need a fully air-gapped network with no internet connectivity?",
+    statement: "Our environment must be fully air-gapped — no internet connectivity",
     context: "Complete physical and logical isolation from the public internet.",
     weight: 3,
     onYes: { SPC: 0, SPrC: 3, NPC: 1, ALC: 0, ALD: 3 },
     onNo:  { SPC: 3, SPrC: 0, NPC: 0, ALC: 1, ALD: 0 }
   },
   {
-    id: 15,
+    id: 11,
     category: "Isolation & Network",
-    text: "Is dedicated physical infrastructure (not shared hardware) required?",
-    context: "Bare-metal isolation or dedicated hosts for your workloads.",
+    statement: "Dedicated physical infrastructure is required — no shared hardware",
+    context: "Bare-metal isolation or dedicated hosts exclusively for your workloads.",
     weight: 2,
     onYes: { SPC: 1, SPrC: 3, NPC: 2, ALC: 2, ALD: 3 },
     onNo:  { SPC: 2, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
   },
   {
-    id: 16,
+    id: 12,
     category: "Isolation & Network",
-    text: "Do you require a private connection (ExpressRoute/VPN) with no public endpoints?",
-    context: "All traffic flows over private network links only.",
+    statement: "All traffic must flow over private connections only — no public endpoints",
+    context: "ExpressRoute, VPN, or equivalent private links for all communication.",
     weight: 2,
     onYes: { SPC: 2, SPrC: 3, NPC: 2, ALC: 2, ALD: 1 },
-    onNo:  { SPC: 2, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
+    onNo:  { SPC: 2, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 },
+    skippedBy: { answeredYes: [10] }
   },
 
   // ── Workload Sensitivity ────────────────────
   {
-    id: 17,
+    id: 13,
     category: "Workload Sensitivity",
-    text: "Will you run government or public-sector workloads with sovereignty mandates?",
+    statement: "We run government or public-sector workloads with strict mandates",
     context: "E-government, citizen services, or public administration systems.",
     weight: 2,
     onYes: { SPC: 1, SPrC: 3, NPC: 3, ALC: 1, ALD: 2 },
     onNo:  { SPC: 2, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
   },
   {
-    id: 18,
+    id: 14,
     category: "Workload Sensitivity",
-    text: "Do you handle healthcare data requiring sovereign-level data protection?",
-    context: "Patient records, medical imaging, health informatics under strict regulation.",
-    weight: 2,
-    onYes: { SPC: 2, SPrC: 2, NPC: 3, ALC: 1, ALD: 1 },
-    onNo:  { SPC: 1, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
-  },
-  {
-    id: 19,
-    category: "Workload Sensitivity",
-    text: "Are your workloads classified at a SECRET or TOP SECRET level?",
-    context: "National security classifications requiring highest isolation.",
+    statement: "Our workloads are classified at SECRET or TOP SECRET level",
+    context: "National security classifications requiring the highest isolation.",
     weight: 3,
     onYes: { SPC: 0, SPrC: 3, NPC: 1, ALC: 0, ALD: 3 },
     onNo:  { SPC: 2, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
   },
   {
-    id: 20,
+    id: 15,
     category: "Workload Sensitivity",
-    text: "Do you operate critical national infrastructure (energy, telecom, transport)?",
+    statement: "We operate critical national infrastructure (energy, telecom, transport)",
     context: "Systems whose failure could impact national security or public safety.",
     weight: 2,
     onYes: { SPC: 1, SPrC: 3, NPC: 2, ALC: 2, ALD: 2 },
     onNo:  { SPC: 2, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
   },
   {
-    id: 21,
+    id: 16,
     category: "Workload Sensitivity",
-    text: "Do you process financial services data under strict national banking regulation?",
-    context: "Trading platforms, banking cores, or insurance systems with local mandates.",
+    statement: "We process regulated financial services data",
+    context: "Banking, trading, or insurance workloads under strict national regulation.",
+    weight: 2,
+    onYes: { SPC: 2, SPrC: 2, NPC: 3, ALC: 1, ALD: 1 },
+    onNo:  { SPC: 1, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
+  },
+  {
+    id: 17,
+    category: "Workload Sensitivity",
+    statement: "We handle healthcare data requiring strict data protection",
+    context: "Patient records, medical imaging, or health informatics under regulation.",
     weight: 2,
     onYes: { SPC: 2, SPrC: 2, NPC: 3, ALC: 1, ALD: 1 },
     onNo:  { SPC: 1, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
   },
 
-  // ── Hybrid & Edge Requirements ──────────────
+  // ── Hybrid & On-Premises ────────────────────
   {
-    id: 22,
-    category: "Hybrid & Edge",
-    text: "Do you need to run workloads on-premises with Azure cloud management?",
-    context: "Local compute managed from the Azure portal with Arc, Policy, and RBAC.",
+    id: 18,
+    category: "Hybrid & On-Premises",
+    statement: "We need to run workloads on-premises with cloud management",
+    context: "Local compute managed from the Azure portal — Arc, Policy, RBAC.",
     weight: 3,
     onYes: { SPC: 1, SPrC: 0, NPC: 0, ALC: 3, ALD: 0 },
     onNo:  { SPC: 1, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
   },
   {
-    id: 23,
-    category: "Hybrid & Edge",
-    text: "Do you require edge computing at locations with limited or no internet connectivity?",
+    id: 19,
+    category: "Hybrid & On-Premises",
+    statement: "Edge computing is needed at locations with limited or no connectivity",
     context: "Remote sites, ships, field operations, or tactical environments.",
     weight: 3,
     onYes: { SPC: 0, SPrC: 0, NPC: 0, ALC: 1, ALD: 3 },
     onNo:  { SPC: 1, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
   },
   {
-    id: 24,
-    category: "Hybrid & Edge",
-    text: "Is Azure Arc integration for policy, GitOps, and monitoring important to you?",
+    id: 20,
+    category: "Hybrid & On-Premises",
+    statement: "Azure Arc integration for policy and monitoring is important",
     context: "Unified cloud management across on-premises, edge, and multi-cloud.",
     weight: 2,
     onYes: { SPC: 2, SPrC: 0, NPC: 0, ALC: 3, ALD: 0 },
-    onNo:  { SPC: 1, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
+    onNo:  { SPC: 1, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 },
+    requires: { answeredYes: [18] }
+  },
+  {
+    id: 21,
+    category: "Hybrid & On-Premises",
+    statement: "Local compute must work even if the cloud connection is severed",
+    context: "Business continuity when connectivity to the cloud is interrupted.",
+    weight: 3,
+    onYes: { SPC: 0, SPrC: 1, NPC: 0, ALC: 2, ALD: 3 },
+    onNo:  { SPC: 2, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 },
+    requires: { answeredYes: [18] }
+  },
+  {
+    id: 22,
+    category: "Hybrid & On-Premises",
+    statement: "Local operations must function with zero external network dependencies",
+    context: "Fully self-contained — no reliance on any cloud control plane.",
+    weight: 3,
+    onYes: { SPC: 0, SPrC: 1, NPC: 0, ALC: 0, ALD: 3 },
+    onNo:  { SPC: 1, SPrC: 0, NPC: 0, ALC: 2, ALD: 0 },
+    requires: { answeredYes: [18] }
+  },
+
+  // ── National Partner Cloud (NPC) Gate ───────
+  {
+    id: 23,
+    category: "National Partner Cloud",
+    statement: "Our organization is based in France or Germany",
+    context: "National partner clouds (Bleu and Delos Cloud) are available only in these countries.",
+    weight: 0,
+    onYes: { SPC: 0, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 },
+    onNo:  { SPC: 1, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 },
+    npcGate: "country",
+    requires: { geo: ["EU"] }
+  },
+  {
+    id: 24,
+    category: "National Partner Cloud",
+    statement: "We are a qualified public-sector entity (government, defense, or critical services)",
+    context: "Bleu and Delos Cloud are exclusively for qualified public-sector organizations.",
+    weight: 0,
+    onYes: { SPC: 0, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 },
+    onNo:  { SPC: 1, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 },
+    npcGate: "publicSector",
+    requires: { answeredYes: [23] }
   },
   {
     id: 25,
-    category: "Hybrid & Edge",
-    text: "Do you need local compute that can operate even if the cloud connection is severed?",
-    context: "Business continuity when connectivity to Azure is interrupted.",
-    weight: 3,
-    onYes: { SPC: 0, SPrC: 1, NPC: 0, ALC: 2, ALD: 3 },
-    onNo:  { SPC: 2, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
-  },
-  {
-    id: 26,
-    category: "Hybrid & Edge",
-    text: "Do you want Microsoft Defender, Monitor, and Update Manager on local infrastructure?",
-    context: "Cloud-grade security and observability for on-premises systems.",
-    weight: 2,
-    onYes: { SPC: 1, SPrC: 0, NPC: 0, ALC: 3, ALD: 0 },
-    onNo:  { SPC: 0, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
-  },
-
-  // ── Azure Local Specifics ──────────────────
-  {
-    id: 27,
-    category: "Azure Local Operations",
-    text: "Do you need Azure-consistent VM and container orchestration running locally?",
-    context: "Run AKS, Azure VMs, and Azure services on your own hardware.",
-    weight: 2,
-    onYes: { SPC: 1, SPrC: 0, NPC: 0, ALC: 3, ALD: 2 },
-    onNo:  { SPC: 1, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
-  },
-  {
-    id: 28,
-    category: "Azure Local Operations",
-    text: "Must local operations function with zero external network dependencies?",
-    context: "No reliance on any Azure control plane — fully self-contained.",
-    weight: 3,
-    onYes: { SPC: 0, SPrC: 1, NPC: 0, ALC: 0, ALD: 3 },
-    onNo:  { SPC: 1, SPrC: 0, NPC: 0, ALC: 2, ALD: 0 }
-  },
-  {
-    id: 29,
-    category: "Azure Local Operations",
-    text: "Do you need intermittent connectivity — mostly offline with periodic sync?",
-    context: "Occasional connection to Azure for updates and telemetry uploads.",
-    weight: 2,
-    onYes: { SPC: 0, SPrC: 1, NPC: 0, ALC: 1, ALD: 3 },
-    onNo:  { SPC: 1, SPrC: 0, NPC: 0, ALC: 1, ALD: 0 }
-  },
-  {
-    id: 30,
-    category: "Azure Local Operations",
-    text: "Would you like Azure RBAC and Policy to govern your local infrastructure?",
-    context: "Centralized identity and governance extending to on-premises.",
-    weight: 2,
-    onYes: { SPC: 1, SPrC: 0, NPC: 0, ALC: 3, ALD: 0 },
-    onNo:  { SPC: 0, SPrC: 0, NPC: 0, ALC: 0, ALD: 1 }
-  },
-
-  // ── National Partner Cloud ─────────────────
-  {
-    id: 31,
     category: "National Partner Cloud",
-    text: "Is your organization based in France or Germany?",
-    context: "National partner clouds (Bleu in France, Delos Cloud in Germany) are currently available only in these countries.",
-    weight: 0,
-    onYes: { SPC: 0, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 },
-    onNo:  { SPC: 1, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 },
-    npcGate: "country"
-  },
-  {
-    id: 32,
-    category: "National Partner Cloud",
-    text: "Is your organization a qualified public-sector entity (government, defense, or critical public services)?",
-    context: "Bleu and Delos Cloud are exclusively available to qualified public-sector customers and operators of essential services in their respective countries.",
-    weight: 0,
-    onYes: { SPC: 0, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 },
-    onNo:  { SPC: 1, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 },
-    npcGate: "publicSector"
-  },
-  {
-    id: 33,
-    category: "National Partner Cloud",
-    text: "Do you prefer a cloud operated by a certified national partner under local jurisdiction?",
-    context: "A national entity operates the cloud — no foreign government can compel data disclosure. Includes in-country support and local-language services.",
+    statement: "A cloud operated by a certified national partner under local jurisdiction is preferred",
+    context: "A national entity operates the cloud — no foreign government can compel data disclosure.",
     weight: 3,
     onYes: { SPC: 0, SPrC: 2, NPC: 3, ALC: 0, ALD: 0 },
-    onNo:  { SPC: 3, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
+    onNo:  { SPC: 3, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 },
+    requires: { answeredYes: [23, 24] }
   },
 
-  // ── Cloud Strategy ─────────────────────────
+  // ── Cloud Strategy ──────────────────────────
   {
-    id: 34,
+    id: 26,
     category: "Cloud Strategy",
-    text: "Is your organization adopting a cloud-first strategy with Azure as the primary platform?",
+    statement: "Cloud-first with Azure as the primary platform",
     context: "Strategic commitment to Azure for innovation and digital transformation.",
     weight: 2,
     onYes: { SPC: 3, SPrC: 1, NPC: 1, ALC: 2, ALD: 0 },
     onNo:  { SPC: 0, SPrC: 1, NPC: 1, ALC: 0, ALD: 2 }
   },
   {
-    id: 35,
+    id: 27,
     category: "Cloud Strategy",
-    text: "Do you need the broadest possible set of Azure PaaS services (AI, Analytics, IoT)?",
-    context: "Access to 200+ Azure services vs. a curated sovereign subset.",
+    statement: "Access to the broadest set of cloud services (AI, Analytics, IoT) is important",
+    context: "200+ services vs. a curated subset with tighter controls.",
     weight: 2,
     onYes: { SPC: 3, SPrC: 0, NPC: 1, ALC: 1, ALD: 0 },
     onNo:  { SPC: 0, SPrC: 2, NPC: 1, ALC: 0, ALD: 1 }
   },
   {
-    id: 36,
+    id: 28,
     category: "Cloud Strategy",
-    text: "Do you need to scale elastically with global Azure capacity?",
+    statement: "Elastic scaling with global capacity is needed",
     context: "Burst capacity, auto-scale, and consumption-based pricing.",
     weight: 2,
     onYes: { SPC: 3, SPrC: 0, NPC: 2, ALC: 0, ALD: 0 },
     onNo:  { SPC: 0, SPrC: 1, NPC: 0, ALC: 1, ALD: 1 }
   },
   {
-    id: 37,
+    id: 29,
     category: "Cloud Strategy",
-    text: "Is minimizing operational overhead more important than maximum sovereignty control?",
-    context: "Microsoft-managed operations vs. self-managed sovereign operations.",
+    statement: "Minimizing operational overhead matters more than maximum control",
+    context: "Prefer Microsoft-managed operations over self-managed infrastructure.",
     weight: 2,
     onYes: { SPC: 3, SPrC: 0, NPC: 2, ALC: 0, ALD: 0 },
     onNo:  { SPC: 0, SPrC: 2, NPC: 0, ALC: 1, ALD: 2 }
   },
   {
-    id: 38,
+    id: 30,
     category: "Cloud Strategy",
-    text: "Do you anticipate needing a hybrid combination of public cloud and on-premises?",
-    context: "Some workloads in Azure, some on local infrastructure — managed together.",
+    statement: "A hybrid combination of public cloud and on-premises is anticipated",
+    context: "Some workloads in the cloud, some on local infrastructure — managed together.",
     weight: 2,
     onYes: { SPC: 2, SPrC: 0, NPC: 1, ALC: 3, ALD: 1 },
     onNo:  { SPC: 1, SPrC: 1, NPC: 0, ALC: 0, ALD: 0 }
+  },
+
+  // ── Defense / Classified (conditional) ──────
+  {
+    id: 31,
+    category: "Defense & Classified",
+    statement: "Compliance with national defense or classified information standards is required",
+    context: "Military, intelligence, or government secret classifications.",
+    weight: 3,
+    onYes: { SPC: 0, SPrC: 3, NPC: 1, ALC: 1, ALD: 3 },
+    onNo:  { SPC: 2, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 },
+    requires: { answeredYes: [13] }
   }
 ];

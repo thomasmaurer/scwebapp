@@ -122,9 +122,9 @@ const GENERAL_RESOURCES = [
  * based on user answers (yes/no) and question weights.
  */
 class ScoringEngine {
-  constructor(questions) {
-    this.questions = questions;
-    this.answers = [];        // Array of { questionId, answer: 'yes'|'no' }
+  constructor(statements) {
+    this.statements = statements;
+    this.answers = [];        // Array of { statementId, answer: 'yes'|'no' }
     this.scores = this._initScores();
     this.maxPossible = this._computeMaxPossible();
     // NPC qualification gates: both must be true for NPC to be recommended
@@ -135,13 +135,13 @@ class ScoringEngine {
     return { SPC: 0, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 };
   }
 
-  /** Theoretical maximum if every question answered 'yes' with max pillar contribution */
+  /** Theoretical maximum if every statement answered 'yes' with max pillar contribution */
   _computeMaxPossible() {
     const max = this._initScores();
-    for (const q of this.questions) {
+    for (const s of this.statements) {
       for (const pillar of Object.keys(max)) {
-        const yesVal = (q.onYes[pillar] || 0) * q.weight;
-        const noVal  = (q.onNo[pillar] || 0) * q.weight;
+        const yesVal = (s.onYes[pillar] || 0) * s.weight;
+        const noVal  = (s.onNo[pillar] || 0) * s.weight;
         max[pillar] += Math.max(yesVal, noVal);
       }
     }
@@ -149,20 +149,20 @@ class ScoringEngine {
   }
 
   /** Record an answer and update scores */
-  recordAnswer(questionId, answer) {
-    const question = this.questions.find(q => q.id === questionId);
-    if (!question) return;
+  recordAnswer(statementId, answer) {
+    const stmt = this.statements.find(s => s.id === statementId);
+    if (!stmt) return;
 
-    this.answers.push({ questionId, answer });
+    this.answers.push({ statementId, answer });
 
-    const mapping = answer === 'yes' ? question.onYes : question.onNo;
+    const mapping = answer === 'yes' ? stmt.onYes : stmt.onNo;
     for (const pillar of Object.keys(this.scores)) {
-      this.scores[pillar] += (mapping[pillar] || 0) * question.weight;
+      this.scores[pillar] += (mapping[pillar] || 0) * stmt.weight;
     }
 
     // Track NPC qualification gates
-    if (question.npcGate && answer === 'yes') {
-      this.npcGates[question.npcGate] = true;
+    if (stmt.npcGate && answer === 'yes') {
+      this.npcGates[stmt.npcGate] = true;
     }
   }
 
@@ -171,17 +171,17 @@ class ScoringEngine {
     if (this.answers.length === 0) return null;
 
     const last = this.answers.pop();
-    const question = this.questions.find(q => q.id === last.questionId);
-    if (!question) return null;
+    const stmt = this.statements.find(s => s.id === last.statementId);
+    if (!stmt) return null;
 
-    const mapping = last.answer === 'yes' ? question.onYes : question.onNo;
+    const mapping = last.answer === 'yes' ? stmt.onYes : stmt.onNo;
     for (const pillar of Object.keys(this.scores)) {
-      this.scores[pillar] -= (mapping[pillar] || 0) * question.weight;
+      this.scores[pillar] -= (mapping[pillar] || 0) * stmt.weight;
     }
 
-    // Recompute NPC gate if undone question was a gate
-    if (question.npcGate && last.answer === 'yes') {
-      this.npcGates[question.npcGate] = false;
+    // Recompute NPC gate if undone statement was a gate
+    if (stmt.npcGate && last.answer === 'yes') {
+      this.npcGates[stmt.npcGate] = false;
     }
 
     return last;
@@ -338,10 +338,143 @@ class ScoringEngine {
     return combos;
   }
 
+  /** Apply geo-specific auto-scores (silent compliance adjustments) */
+  applyGeoScores(geoKey) {
+    const adjustments = GEO_AUTO_SCORES[geoKey];
+    if (!adjustments) return;
+    for (const pillar of Object.keys(this.scores)) {
+      this.scores[pillar] += (adjustments[pillar] || 0);
+    }
+  }
+
+  /** Update the active statement pool (recomputes max possible) */
+  setActiveStatements(statements) {
+    this.statements = statements;
+    this.maxPossible = this._computeMaxPossible();
+  }
+
   /** Reset all state */
   reset() {
     this.answers = [];
     this.scores = this._initScores();
+    this.maxPossible = this._computeMaxPossible();
     this.npcGates = { country: false, publicSector: false };
+  }
+}
+
+/**
+ * FlowEngine — manages dynamic card flow based on geo and prior answers.
+ * Determines which statements to show and in what order.
+ */
+class FlowEngine {
+  constructor(statements) {
+    this.allStatements = statements;
+    this.geo = null;
+    this.answeredIds = new Map();  // id → 'yes'|'no'
+    this.history = [];             // ordered list of statement ids answered
+  }
+
+  /** Select a geo region — determines which statements are geo-eligible */
+  selectGeo(geoKey) {
+    this.geo = geoKey;
+  }
+
+  /** Check if a statement's conditions are met */
+  _isEligible(stmt) {
+    const req = stmt.requires;
+    if (req) {
+      // Geo requirement
+      if (req.geo && !req.geo.includes(this.geo)) return false;
+      // Must have answered yes to specific statements
+      if (req.answeredYes) {
+        for (const id of req.answeredYes) {
+          if (this.answeredIds.get(id) !== 'yes') return false;
+        }
+      }
+      // Must have answered no to specific statements
+      if (req.answeredNo) {
+        for (const id of req.answeredNo) {
+          if (this.answeredIds.get(id) !== 'no') return false;
+        }
+      }
+    }
+
+    // SkippedBy: skip if a specific answer was given
+    const skip = stmt.skippedBy;
+    if (skip) {
+      if (skip.answeredYes) {
+        for (const id of skip.answeredYes) {
+          if (this.answeredIds.get(id) === 'yes') return false;
+        }
+      }
+      if (skip.answeredNo) {
+        for (const id of skip.answeredNo) {
+          if (this.answeredIds.get(id) === 'no') return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
+  /** Get the next statement to show, or null if done */
+  getNextStatement() {
+    for (const stmt of this.allStatements) {
+      if (this.answeredIds.has(stmt.id)) continue;
+      if (this._isEligible(stmt)) return stmt;
+    }
+    return null;
+  }
+
+  /** Peek ahead to get upcoming statements (for card stack preview) */
+  peekNext(count) {
+    const upcoming = [];
+    for (const stmt of this.allStatements) {
+      if (upcoming.length >= count) break;
+      if (this.answeredIds.has(stmt.id)) continue;
+      if (this._isEligible(stmt)) upcoming.push(stmt);
+    }
+    return upcoming;
+  }
+
+  /** Record an answer */
+  recordAnswer(id, answer) {
+    this.answeredIds.set(id, answer);
+    this.history.push(id);
+  }
+
+  /** Undo last answer. Returns the undone id or null. */
+  undoLast() {
+    if (this.history.length === 0) return null;
+    const id = this.history.pop();
+    this.answeredIds.delete(id);
+    return id;
+  }
+
+  /** Get progress as { answered, estimated } */
+  getProgress() {
+    const answered = this.history.length;
+    // Estimate remaining by checking eligible unanswered statements
+    let remaining = 0;
+    for (const stmt of this.allStatements) {
+      if (this.answeredIds.has(stmt.id)) continue;
+      if (this._isEligible(stmt)) remaining++;
+    }
+    return { answered, estimated: answered + remaining };
+  }
+
+  /** Get the list of active statements (for scoring engine pool) */
+  getActiveStatements() {
+    return this.allStatements.filter(s => {
+      if (!s.requires || !s.requires.geo) return true;
+      return s.requires.geo.includes(this.geo);
+    });
+  }
+
+  /** Reset all state */
+  reset() {
+    this.geo = null;
+    this.answeredIds = new Map();
+    this.history = [];
   }
 }

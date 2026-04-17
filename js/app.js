@@ -1,8 +1,8 @@
 /* =============================================
    App Orchestrator
    
-   Ties together questions, scoring, swipe UI,
-   and results rendering. Entry point.
+   Ties together geo selection, dynamic statements,
+   scoring, swipe UI, and results rendering.
    ============================================= */
 
 (function () {
@@ -22,12 +22,14 @@
   const categoryBadge  = document.getElementById('categoryBadge');
   const cardContainer  = document.getElementById('cardContainer');
   const resultsContent = document.getElementById('resultsContent');
+  const swipeButtons   = document.querySelector('.swipe-buttons');
 
   // ── State ────────────────────────────────────
-  let currentIndex = 0;
   let engine = null;
+  let flowEngine = null;
   let swipeCtrl = null;
   let renderer = null;
+  let currentStatement = null;   // currently displayed statement
 
   // ── Theme Toggle ─────────────────────────────
   function initTheme() {
@@ -56,11 +58,63 @@
     screen.classList.add('active');
   }
 
-  // ── Card Rendering ───────────────────────────
-  function createCardElement(question, index) {
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  // ── Geo Selector Card ────────────────────────
+  function renderGeoSelector() {
+    cardContainer.innerHTML = '';
+    categoryBadge.innerHTML = '<span>Select Your Region</span>';
+    swipeButtons.style.display = 'none';
+
+    const card = document.createElement('div');
+    card.className = 'swipe-card geo-selector-card top-card entering';
+    card.addEventListener('animationend', () => card.classList.remove('entering'), { once: true });
+
+    card.innerHTML = `
+      <div class="card-question-number">Step 1</div>
+      <div class="card-statement-text">Where is your organization primarily based?</div>
+      <div class="card-question-context">This determines applicable regulations and available options.</div>
+      <div class="geo-grid">
+        ${GEO_OPTIONS.map(g => `
+          <button class="geo-btn" data-geo="${escapeHtml(g.key)}">
+            <span class="geo-icon">${g.icon}</span>
+            <span class="geo-label">${escapeHtml(g.label)}</span>
+          </button>
+        `).join('')}
+      </div>
+    `;
+
+    cardContainer.appendChild(card);
+
+    // Attach click handlers
+    card.querySelectorAll('.geo-btn').forEach(btn => {
+      btn.addEventListener('click', () => handleGeoSelect(btn.dataset.geo));
+    });
+
+    updateProgress();
+  }
+
+  // ── Handle Geo Selection ─────────────────────
+  function handleGeoSelect(geoKey) {
+    flowEngine.selectGeo(geoKey);
+    engine.applyGeoScores(geoKey);
+
+    // Update scoring engine with geo-filtered pool
+    engine.setActiveStatements(flowEngine.getActiveStatements());
+
+    swipeButtons.style.display = '';
+    advanceToNextStatement();
+  }
+
+  // ── Statement Card Rendering ─────────────────
+  function createStatementCard(stmt, progress) {
     const card = document.createElement('div');
     card.className = 'swipe-card';
-    card.dataset.questionId = question.id;
+    card.dataset.statementId = stmt.id;
 
     card.innerHTML = `
       <div class="card-overlay card-overlay-yes">
@@ -69,87 +123,108 @@
       <div class="card-overlay card-overlay-no">
         <span class="card-overlay-label">NO</span>
       </div>
-      <div class="card-question-number">Question ${index + 1} of ${QUESTIONS.length}</div>
-      <div class="card-question-text">${escapeHtml(question.text)}</div>
-      <div class="card-question-context">${escapeHtml(question.context)}</div>
+      <div class="card-question-number">${progress.answered + 1} of ~${progress.estimated}</div>
+      <div class="card-statement-text">${escapeHtml(stmt.statement)}</div>
+      <div class="card-question-context">${escapeHtml(stmt.context)}</div>
     `;
 
     return card;
   }
 
-  function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
-
-  /** Render the card stack (top + next + behind) */
-  function renderCards() {
+  /** Render the card stack using FlowEngine peek */
+  function renderStatementCards() {
     cardContainer.innerHTML = '';
+    const progress = flowEngine.getProgress();
+    const upcoming = flowEngine.peekNext(3);
 
-    // Behind card (current + 2)
-    if (currentIndex + 2 < QUESTIONS.length) {
-      const behind = createCardElement(QUESTIONS[currentIndex + 2], currentIndex + 2);
+    if (upcoming.length === 0) {
+      showResults();
+      return;
+    }
+
+    // Behind card (3rd upcoming)
+    if (upcoming[2]) {
+      const behind = createStatementCard(upcoming[2], { answered: progress.answered + 2, estimated: progress.estimated });
       behind.classList.add('behind-card');
       cardContainer.appendChild(behind);
     }
 
-    // Next card (current + 1)
-    if (currentIndex + 1 < QUESTIONS.length) {
-      const next = createCardElement(QUESTIONS[currentIndex + 1], currentIndex + 1);
+    // Next card (2nd upcoming)
+    if (upcoming[1]) {
+      const next = createStatementCard(upcoming[1], { answered: progress.answered + 1, estimated: progress.estimated });
       next.classList.add('next-card');
       cardContainer.appendChild(next);
     }
 
-    // Top card (current)
-    if (currentIndex < QUESTIONS.length) {
-      const top = createCardElement(QUESTIONS[currentIndex], currentIndex);
-      top.classList.add('top-card', 'entering');
-      // Remove entering class after animation so it won't block exit animations
-      top.addEventListener('animationend', () => {
-        top.classList.remove('entering');
-      }, { once: true });
-      cardContainer.appendChild(top);
+    // Top card (1st upcoming = current)
+    currentStatement = upcoming[0];
+    const top = createStatementCard(currentStatement, progress);
+    top.classList.add('top-card', 'entering');
+    top.addEventListener('animationend', () => top.classList.remove('entering'), { once: true });
+    cardContainer.appendChild(top);
 
-      // Attach swipe controller
-      swipeCtrl.attachTo(top);
-    }
+    // Attach swipe controller
+    swipeCtrl.attachTo(top);
 
     // Update category badge
-    if (currentIndex < QUESTIONS.length) {
-      categoryBadge.innerHTML = `<span>${escapeHtml(QUESTIONS[currentIndex].category)}</span>`;
+    categoryBadge.innerHTML = `<span>${escapeHtml(currentStatement.category)}</span>`;
+  }
+
+  function advanceToNextStatement() {
+    currentStatement = flowEngine.getNextStatement();
+    if (!currentStatement) {
+      showResults();
+    } else {
+      renderStatementCards();
+      updateProgress();
     }
   }
 
   // ── Progress ─────────────────────────────────
   function updateProgress() {
-    const pct = (currentIndex / QUESTIONS.length) * 100;
+    if (!flowEngine.geo) {
+      // Geo selector phase
+      progressFill.style.width = '0%';
+      progressText.textContent = '';
+      btnUndo.disabled = true;
+      return;
+    }
+    const { answered, estimated } = flowEngine.getProgress();
+    const pct = estimated > 0 ? (answered / estimated) * 100 : 0;
     progressFill.style.width = `${pct}%`;
-    progressText.textContent = `${currentIndex} / ${QUESTIONS.length}`;
-    btnUndo.disabled = engine.answers.length === 0;
+    progressText.textContent = `${answered} / ~${estimated}`;
+    btnUndo.disabled = flowEngine.history.length === 0;
   }
 
   // ── Swipe Handler ────────────────────────────
   function handleSwipe(direction) {
+    if (!currentStatement) return;
     const answer = direction === 'right' ? 'yes' : 'no';
-    engine.recordAnswer(QUESTIONS[currentIndex].id, answer);
-    currentIndex++;
 
-    if (currentIndex >= QUESTIONS.length) {
-      showResults();
-    } else {
-      renderCards();
-      updateProgress();
-    }
+    flowEngine.recordAnswer(currentStatement.id, answer);
+    engine.recordAnswer(currentStatement.id, answer);
+
+    advanceToNextStatement();
   }
 
   // ── Undo ─────────────────────────────────────
   function handleUndo() {
-    const undone = engine.undoLast();
-    if (!undone) return;
+    const undoneId = flowEngine.undoLast();
+    if (undoneId === null) return;
 
-    currentIndex--;
-    renderCards();
+    engine.undoLast();
+
+    // If we've undone all statements and geo was selected, go back to geo
+    if (flowEngine.history.length === 0 && flowEngine.geo) {
+      // Reset geo selection
+      flowEngine.geo = null;
+      engine.reset();
+      engine.setActiveStatements(STATEMENTS);
+      renderGeoSelector();
+      return;
+    }
+
+    renderStatementCards();
     updateProgress();
   }
 
@@ -158,20 +233,23 @@
     showScreen(resultsScreen);
     const recommendations = engine.getRecommendations();
     const hybridCombos = engine.getHybridRecommendation(recommendations);
-    renderer.render(recommendations, hybridCombos, handleRestart);
+    const answeredCount = flowEngine.history.length;
+    renderer.render(recommendations, hybridCombos, handleRestart, answeredCount);
   }
 
   // ── Restart ──────────────────────────────────
   function handleRestart() {
-    currentIndex = 0;
+    currentStatement = null;
     engine.reset();
+    engine.setActiveStatements(STATEMENTS);
+    flowEngine.reset();
     showScreen(welcomeScreen);
   }
 
   // ── Keyboard Support ─────────────────────────
   document.addEventListener('keydown', (e) => {
     if (!questionScreen.classList.contains('active')) return;
-    if (currentIndex >= QUESTIONS.length) return;
+    if (!currentStatement) return;
 
     if (e.key === 'ArrowLeft' || e.key === 'n' || e.key === 'N') {
       e.preventDefault();
@@ -189,24 +267,24 @@
   function init() {
     initTheme();
 
-    engine = new ScoringEngine(QUESTIONS);
+    engine = new ScoringEngine(STATEMENTS);
+    flowEngine = new FlowEngine(STATEMENTS);
     renderer = new ResultsRenderer(resultsContent);
     swipeCtrl = new SwipeController(cardContainer, handleSwipe);
 
     startBtn.addEventListener('click', () => {
       showScreen(questionScreen);
-      renderCards();
-      updateProgress();
+      renderGeoSelector();
     });
 
     btnYes.addEventListener('click', () => {
-      if (currentIndex < QUESTIONS.length) {
+      if (currentStatement) {
         swipeCtrl.triggerSwipe('right');
       }
     });
 
     btnNo.addEventListener('click', () => {
-      if (currentIndex < QUESTIONS.length) {
+      if (currentStatement) {
         swipeCtrl.triggerSwipe('left');
       }
     });

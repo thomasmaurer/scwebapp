@@ -21,8 +21,9 @@ class ResultsRenderer {
    * @param {Array} hybridCombos - From ScoringEngine.getHybridRecommendation()
    * @param {Function} onRestart - Callback for "Start Over" button
    */
-  render(recommendations, hybridCombos, onRestart) {
+  render(recommendations, hybridCombos, onRestart, answeredCount) {
     this.container.innerHTML = '';
+    this.answeredCount = answeredCount || 0;
 
     // Report header
     this._renderHeader();
@@ -72,7 +73,7 @@ class ResultsRenderer {
     const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
     header.innerHTML = `
       <h2>Your Sovereignty Assessment Report</h2>
-      <p>Based on ${QUESTIONS.length} responses — ${this._escapeHtml(date)}</p>
+      <p>Based on ${this.answeredCount} responses — ${this._escapeHtml(date)}</p>
     `;
     this.container.appendChild(header);
   }
@@ -304,7 +305,7 @@ class ResultsRenderer {
     report += '  MICROSOFT SOVEREIGN CLOUD EXPLORER — ASSESSMENT REPORT\n';
     report += '════════════════════════════════════════════════════════════\n';
     report += `  Generated: ${date}\n`;
-    report += `  Questions Answered: ${QUESTIONS.length}\n\n`;
+    report += `  Questions Answered: ${this.answeredCount}\n\n`;
 
     report += '── EXECUTIVE SUMMARY ───────────────────────────────────────\n\n';
     report += `  Primary recommendation: ${recommendations[0].name} (${recommendations[0].score}% alignment)\n\n`;
