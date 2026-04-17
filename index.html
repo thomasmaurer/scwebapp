@@ -34,11 +34,40 @@
     <section id="welcomeScreen" class="screen active">
       <div class="welcome-card">
         <div class="welcome-icon">
-          <svg viewBox="0 0 80 80" width="80" height="80">
-            <rect x="2" y="2" width="34" height="34" rx="4" fill="#0078d4"/>
-            <rect x="44" y="2" width="34" height="34" rx="4" fill="#50e6ff"/>
-            <rect x="2" y="44" width="34" height="34" rx="4" fill="#d83b01"/>
-            <rect x="44" y="44" width="34" height="34" rx="4" fill="#ffb900"/>
+          <svg viewBox="0 0 120 120" width="120" height="120" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Shield body -->
+            <path d="M60 8L16 28v32c0 28 18.7 54.2 44 62 25.3-7.8 44-34 44-62V28L60 8z" fill="url(#shieldGrad)" opacity="0.12"/>
+            <path d="M60 8L16 28v32c0 28 18.7 54.2 44 62 25.3-7.8 44-34 44-62V28L60 8z" fill="none" stroke="url(#shieldStroke)" stroke-width="2.5"/>
+            <!-- Cloud -->
+            <path d="M78 58h2a8 8 0 000-16h-.5A14 14 0 0052 38a12 12 0 00-12 12 10 10 0 000 20h14" fill="none" stroke="#0078d4" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M78 58H54" fill="none" stroke="#0078d4" stroke-width="2.5" stroke-linecap="round"/>
+            <!-- Lock -->
+            <rect x="56" y="60" width="16" height="14" rx="3" fill="#0078d4"/>
+            <path d="M60 60v-4a4 4 0 018 0v4" fill="none" stroke="#50e6ff" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="64" cy="67" r="2" fill="#fff"/>
+            <line x1="64" y1="69" x2="64" y2="71" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+            <!-- Microsoft 4-square accent -->
+            <rect x="32" y="82" width="7" height="7" rx="1.5" fill="#f25022"/>
+            <rect x="41" y="82" width="7" height="7" rx="1.5" fill="#7fba00"/>
+            <rect x="32" y="91" width="7" height="7" rx="1.5" fill="#00a4ef"/>
+            <rect x="41" y="91" width="7" height="7" rx="1.5" fill="#ffb900"/>
+            <!-- Sovereignty accent dots -->
+            <circle cx="72" cy="86" r="1.5" fill="#50e6ff"/>
+            <circle cx="78" cy="84" r="1" fill="#50e6ff"/>
+            <circle cx="84" cy="86" r="1.5" fill="#50e6ff"/>
+            <circle cx="78" cy="90" r="1" fill="#50e6ff"/>
+            <!-- Gradients -->
+            <defs>
+              <linearGradient id="shieldGrad" x1="60" y1="8" x2="60" y2="122" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#0078d4"/>
+                <stop offset="1" stop-color="#5c2d91"/>
+              </linearGradient>
+              <linearGradient id="shieldStroke" x1="60" y1="8" x2="60" y2="122" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#50e6ff"/>
+                <stop offset="0.5" stop-color="#0078d4"/>
+                <stop offset="1" stop-color="#5c2d91"/>
+              </linearGradient>
+            </defs>
           </svg>
         </div>
         <h1>Microsoft Sovereign Cloud Explorer</h1>
