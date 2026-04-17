@@ -127,10 +127,21 @@ class ResultsRenderer {
 
   _buildResultCard(rec) {
     const card = document.createElement('div');
-    card.className = `result-card${rec.recommended ? ' recommended' : ''}`;
+    card.className = `result-card${rec.recommended ? ' recommended' : ''}${rec.disqualified ? ' disqualified' : ''}`;
 
-    const badgeText = rec.recommended ? '★ Recommended' : 'Also Evaluated';
+    const badgeText = rec.recommended ? '★ Recommended' : rec.disqualified ? '⚠ Not Eligible' : 'Also Evaluated';
     const resources = PILLAR_RESOURCES[rec.pillar] || [];
+
+    // Build disqualification notice
+    let disqualifyHtml = '';
+    if (rec.disqualified && rec.disqualifyReason) {
+      disqualifyHtml = `
+        <div class="disqualify-notice">
+          <span class="disqualify-icon">⚠</span>
+          <p>${this._escapeHtml(rec.disqualifyReason)}</p>
+        </div>
+      `;
+    }
 
     // Build resource links for recommended pillars
     let resourcesHtml = '';
@@ -151,6 +162,7 @@ class ResultsRenderer {
         <div class="result-card-title">${rec.icon} ${this._escapeHtml(rec.name)}</div>
         <span class="result-badge">${badgeText}</span>
       </div>
+      ${disqualifyHtml}
       <div class="result-score-label">
         <span>Alignment Score</span>
         <span>${rec.score}%</span>
@@ -316,7 +328,10 @@ class ResultsRenderer {
       const filled = Math.round(r.score / 5);
       const bar = '█'.repeat(filled) + '░'.repeat(20 - filled);
       report += `  ${r.name}\n`;
-      report += `  Score: ${r.score}%  [${bar}]  ${r.recommended ? '★ RECOMMENDED' : ''}\n`;
+      report += `  Score: ${r.score}%  [${bar}]  ${r.recommended ? '★ RECOMMENDED' : r.disqualified ? '⚠ NOT ELIGIBLE' : ''}\n`;
+      if (r.disqualified && r.disqualifyReason) {
+        report += `  ⚠ ${r.disqualifyReason}\n`;
+      }
       report += `  ${r.description}\n\n`;
       report += '  Key features:\n';
       r.highlights.forEach(h => {

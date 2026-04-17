@@ -17,7 +17,7 @@ const PILLARS = {
 const PILLAR_DESCRIPTIONS = {
   SPC: "Azure public cloud enhanced with sovereign controls — data residency guarantees, GDPR/FADP/FINMA/NIS2 alignment, Customer Managed Keys, confidential computing, and operational sovereignty features. Best for organizations that want the breadth of Azure services with strong sovereign guardrails.",
   SPrC: "A fully isolated, in-country cloud operated by a trusted national entity or government. Maximum physical and logical isolation for classified or highly sensitive workloads that cannot share infrastructure with any other tenant.",
-  NPC: "Sovereign cloud regions delivered and operated by certified national partners with local operations, local support, and full alignment with national regulatory frameworks. Combines Azure technology with national oversight.",
+  NPC: "Sovereign cloud operated by certified national partners — Bleu in France and Delos Cloud in Germany. These clouds run Azure technology under full national jurisdiction, operated exclusively by local entities with national security clearance. Available only to qualified public-sector customers and operators of essential services.",
   ALC: "Azure Local with cloud-connected management — Azure Arc integration, Policy, RBAC, Defender, Monitor, and GitOps governed from Azure. Run Azure-consistent workloads on your hardware with a cloud control plane.",
   ALD: "Azure Local for fully offline or intermittently connected environments. No dependency on the Azure control plane. Designed for high-security, isolated, classified, or edge scenarios requiring zero external connectivity."
 };
@@ -39,11 +39,11 @@ const PILLAR_HIGHLIGHTS = {
     "Full patch and update vetting"
   ],
   NPC: [
-    "Azure technology with national partner operations",
-    "Subject to local jurisdiction only",
-    "In-country support and local-language services",
-    "Regulatory alignment (GDPR, FADP, FINMA, NIS2)",
-    "Government and financial sector certifications"
+    "Bleu (France) & Delos Cloud (Germany)",
+    "Operated by national entities under local jurisdiction only",
+    "Exclusively for qualified public-sector customers",
+    "In-country support with national security clearance",
+    "Full regulatory alignment (GDPR, NIS2, national frameworks)"
   ],
   ALC: [
     "Azure Arc-managed on-premises infrastructure",
@@ -82,11 +82,11 @@ const PILLAR_RESOURCES = {
   ],
   NPC: [
     { title: "Microsoft Cloud for Sovereignty Overview", url: "https://learn.microsoft.com/industry/sovereignty/cloud-for-sovereignty" },
-    { title: "Azure geographies and regions", url: "https://learn.microsoft.com/azure/reliability/availability-zones-overview" },
+    { title: "Bleu — Sovereign Cloud for France", url: "https://bleu.cloud/" },
+    { title: "Delos Cloud — Sovereign Cloud for Germany", url: "https://dfrnt.com/blog/delos-cloud/" },
     { title: "Azure compliance offerings by region", url: "https://learn.microsoft.com/azure/compliance/" },
     { title: "Microsoft GDPR commitments", url: "https://learn.microsoft.com/compliance/regulatory/gdpr" },
-    { title: "Azure in government", url: "https://learn.microsoft.com/azure/azure-government/documentation-government-welcome" },
-    { title: "Find a Microsoft partner", url: "https://partner.microsoft.com/partnership/find-a-partner" }
+    { title: "Azure in government", url: "https://learn.microsoft.com/azure/azure-government/documentation-government-welcome" }
   ],
   ALC: [
     { title: "Azure Local overview", url: "https://learn.microsoft.com/azure/azure-local/overview" },
@@ -127,6 +127,8 @@ class ScoringEngine {
     this.answers = [];        // Array of { questionId, answer: 'yes'|'no' }
     this.scores = this._initScores();
     this.maxPossible = this._computeMaxPossible();
+    // NPC qualification gates: both must be true for NPC to be recommended
+    this.npcGates = { country: false, publicSector: false };
   }
 
   _initScores() {
@@ -157,6 +159,11 @@ class ScoringEngine {
     for (const pillar of Object.keys(this.scores)) {
       this.scores[pillar] += (mapping[pillar] || 0) * question.weight;
     }
+
+    // Track NPC qualification gates
+    if (question.npcGate && answer === 'yes') {
+      this.npcGates[question.npcGate] = true;
+    }
   }
 
   /** Undo the last answer */
@@ -171,6 +178,12 @@ class ScoringEngine {
     for (const pillar of Object.keys(this.scores)) {
       this.scores[pillar] -= (mapping[pillar] || 0) * question.weight;
     }
+
+    // Recompute NPC gate if undone question was a gate
+    if (question.npcGate && last.answer === 'yes') {
+      this.npcGates[question.npcGate] = false;
+    }
+
     return last;
   }
 
@@ -236,6 +249,24 @@ class ScoringEngine {
     for (const r of results) {
       if (r.score >= topScore - threshold && r.score > 20) {
         r.recommended = true;
+      }
+    }
+
+    // NPC qualification gate: only recommend if both gates are met
+    const npcQualified = this.npcGates.country && this.npcGates.publicSector;
+    const npc = results.find(r => r.pillar === 'NPC');
+    if (npc) {
+      if (!npcQualified && npc.recommended) {
+        npc.recommended = false;
+        npc.disqualified = true;
+        npc.disqualifyReason = !this.npcGates.country && !this.npcGates.publicSector
+          ? "National partner clouds (Bleu and Delos Cloud) are exclusively available to qualified public-sector customers in France and Germany."
+          : !this.npcGates.country
+            ? "National partner clouds are currently available only in France (Bleu) and Germany (Delos Cloud). Your organization is not based in an eligible country."
+            : "National partner clouds (Bleu and Delos Cloud) are exclusively available to qualified public-sector entities. Your organization does not meet the public-sector eligibility criteria.";
+      } else if (!npcQualified) {
+        npc.disqualified = true;
+        npc.disqualifyReason = "National partner clouds (Bleu and Delos Cloud) are available only to qualified public-sector customers in France and Germany.";
       }
     }
 
@@ -311,5 +342,6 @@ class ScoringEngine {
   reset() {
     this.answers = [];
     this.scores = this._initScores();
+    this.npcGates = { country: false, publicSector: false };
   }
 }

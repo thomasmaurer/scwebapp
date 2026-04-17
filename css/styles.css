@@ -589,6 +589,41 @@ body {
   color: #fff;
 }
 
+.result-card.disqualified {
+  border-color: var(--accent-orange);
+  border-width: 2px;
+  opacity: 0.85;
+}
+
+.result-card.disqualified .result-badge {
+  background: var(--accent-orange);
+  color: #fff;
+}
+
+.disqualify-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: var(--accent-orange-light);
+  border: 1px solid var(--accent-orange);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.disqualify-notice .disqualify-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+  line-height: 1.4;
+}
+
+.disqualify-notice p {
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  line-height: 1.45;
+  margin: 0;
+}
+
 .result-card-header {
   display: flex;
   justify-content: space-between;

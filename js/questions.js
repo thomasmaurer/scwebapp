@@ -302,28 +302,30 @@ const QUESTIONS = [
   {
     id: 31,
     category: "National Partner Cloud",
-    text: "Do you prefer a cloud operated by a certified national partner in your country?",
-    context: "Local company operating Azure infrastructure under national oversight.",
-    weight: 3,
-    onYes: { SPC: 0, SPrC: 1, NPC: 3, ALC: 0, ALD: 0 },
-    onNo:  { SPC: 2, SPrC: 1, NPC: 0, ALC: 0, ALD: 0 }
+    text: "Is your organization based in France or Germany?",
+    context: "National partner clouds (Bleu in France, Delos Cloud in Germany) are currently available only in these countries.",
+    weight: 0,
+    onYes: { SPC: 0, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 },
+    onNo:  { SPC: 1, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 },
+    npcGate: "country"
   },
   {
     id: 32,
     category: "National Partner Cloud",
-    text: "Is local-language support and in-country technical assistance a priority?",
-    context: "Native-language help desk, documentation, and professional services.",
-    weight: 1,
-    onYes: { SPC: 1, SPrC: 1, NPC: 3, ALC: 0, ALD: 0 },
-    onNo:  { SPC: 1, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
+    text: "Is your organization a qualified public-sector entity (government, defense, or critical public services)?",
+    context: "Bleu and Delos Cloud are exclusively available to qualified public-sector customers and operators of essential services in their respective countries.",
+    weight: 0,
+    onYes: { SPC: 0, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 },
+    onNo:  { SPC: 1, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 },
+    npcGate: "publicSector"
   },
   {
     id: 33,
     category: "National Partner Cloud",
-    text: "Must the cloud provider be subject to only your country's legal jurisdiction?",
-    context: "No foreign government can compel data disclosure.",
+    text: "Do you prefer a cloud operated by a certified national partner under local jurisdiction?",
+    context: "A national entity operates the cloud — no foreign government can compel data disclosure. Includes in-country support and local-language services.",
     weight: 3,
-    onYes: { SPC: 0, SPrC: 3, NPC: 3, ALC: 1, ALD: 2 },
+    onYes: { SPC: 0, SPrC: 2, NPC: 3, ALC: 0, ALD: 0 },
     onNo:  { SPC: 3, SPrC: 0, NPC: 0, ALC: 0, ALD: 0 }
   },
 
