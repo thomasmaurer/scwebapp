@@ -42,8 +42,19 @@ class ResultsRenderer {
       this._renderComboBanner(combo);
     }
 
-    // Pillar result cards with resource links
-    for (const rec of recommendations) {
+    // Unified "cloud mix for your workloads" section header + intro,
+    // followed by the per-pillar cards (which now carry the workload guidance).
+    this._renderCloudMixIntro();
+
+    // Pillar result cards with resource links.
+    // If the customer is not eligible for National Partner Clouds (NPC),
+    // push NPC to the bottom so eligible options surface first.
+    const orderedRecs = [...recommendations].sort((a, b) => {
+      const aSink = a.pillar === 'NPC' && a.disqualified ? 1 : 0;
+      const bSink = b.pillar === 'NPC' && b.disqualified ? 1 : 0;
+      return aSink - bSink;
+    });
+    for (const rec of orderedRecs) {
       const card = this._buildResultCard(rec);
       this.container.appendChild(card);
     }
@@ -85,16 +96,26 @@ class ResultsRenderer {
   _renderExecutiveSummary(recommendations, hybridCombos) {
     const recommended = recommendations.filter(r => r.recommended);
     const topPillar = recommendations[0];
+    const spc = recommendations.find(r => r.pillar === 'SPC');
+    const sprc = recommendations.find(r => r.pillar === 'SPrC');
 
-    let summaryText = `Your responses indicate the strongest alignment with <strong>${this._escapeHtml(topPillar.name)}</strong> (${topPillar.score}% match).`;
+    // Always frame as a multi-pillar story — most customers run a mix.
+    let summaryText = '';
+    summaryText += `Most organizations don't pick a single sovereign cloud option — they combine several, mapping each workload to the pillar that fits it best. <strong>Sovereign Public Cloud</strong> is almost always part of that mix as the foundation for the broadest set of services, with <strong>Sovereign Private Cloud</strong>, <strong>Azure Local</strong>, or a <strong>National Partner Cloud</strong> layered in for workloads with stricter requirements.`;
+    summaryText += ` Based on your responses, your strongest alignment is with <strong>${this._escapeHtml(topPillar.name)}</strong> (${topPillar.score}% match).`;
 
     if (recommended.length > 1) {
       const others = recommended.slice(1).map(r => `<strong>${this._escapeHtml(r.name)}</strong>`);
-      summaryText += ` Additionally, ${others.join(' and ')} ${others.length > 1 ? 'are' : 'is'} also recommended for your requirements.`;
+      summaryText += ` ${others.join(' and ')} ${others.length > 1 ? 'are' : 'is'} also a strong fit and should be considered alongside it for the right workloads.`;
+    } else if (topPillar.pillar !== 'SPC' && spc && !spc.disqualified) {
+      // Even when only one pillar is "recommended", surface SPC as the practical companion.
+      summaryText += ` In practice, <strong>${this._escapeHtml(spc.name)}</strong> (${spc.score}%) will likely complement it for general-purpose and innovation workloads.`;
+    } else if (topPillar.pillar === 'SPC' && sprc && !sprc.disqualified) {
+      summaryText += ` Plan for <strong>${this._escapeHtml(sprc.name)}</strong> (${sprc.score}%) to host the subset of workloads with the strictest isolation, residency, or classification needs.`;
     }
 
     if (hybridCombos.length > 0) {
-      summaryText += ` A hybrid deployment strategy is suggested — see the combination recommendations below.`;
+      summaryText += ` See the suggested deployment combinations below for concrete patterns.`;
     }
 
     // Mention recommended sub-pillars (e.g. ALC/ALD under SPrC)
@@ -118,6 +139,41 @@ class ResultsRenderer {
       <p>${summaryText}</p>
     `;
     this.container.appendChild(section);
+  }
+
+  /**
+   * Always-visible intro for the unified "Your likely cloud mix for your
+   * workloads" section. The per-pillar cards rendered after this carry
+   * each pillar's workload guidance and "In your mix / Consider / Not eligible"
+   * badge, so this is just the section header + framing paragraph.
+   */
+  _renderCloudMixIntro() {
+    const section = document.createElement('div');
+    section.className = 'cloud-mix-intro';
+    section.innerHTML = `
+      <h3>🧩 Your likely cloud mix for your workloads</h3>
+      <p class="mix-intro">
+        Sovereign cloud is rarely an either/or choice. Real-world deployments almost always
+        combine <strong>Sovereign Public Cloud</strong> as the broad foundation with one or
+        more of <strong>Sovereign Private Cloud</strong>, <strong>Azure Local</strong>, or a
+        <strong>National Partner Cloud</strong> for workloads that demand stricter controls.
+        Below is how each pillar maps to your responses — use the “When” guidance to
+        match each workload to the right pillar.
+      </p>
+    `;
+    this.container.appendChild(section);
+  }
+
+  /** One-line workload guidance per pillar (rendered inline on each card). */
+  _workloadGuidance(pillar) {
+    const map = {
+      SPC:  'Default for most workloads — general-purpose, customer-facing, analytics, AI, innovation.',
+      SPrC: 'Classified, regulated, or highly sensitive workloads requiring physical isolation.',
+      ALC:  'On-prem workloads that should still be cloud-managed (Arc, Policy, Defender).',
+      ALD:  'Air-gapped or intermittently connected sites — remote, tactical, or classified.',
+      NPC:  'Qualified public-sector entities in France (Bleu) or Germany (Delos Cloud).'
+    };
+    return map[pillar] || '';
   }
 
   /**
@@ -151,8 +207,19 @@ class ResultsRenderer {
     const size = 420;
     const cx = size / 2;
     const cy = size / 2 + 8; // slight downward offset to leave room for top label
-    const radius = 140;
+    const radius = 170;
     const n = order.length;
+
+    // ViewBox padding so labels (which extend ~1.22 * radius past the axis ends
+    // plus the text width) are never clipped. Tight padding here = a bigger
+    // pentagon when the SVG is scaled to fill its container.
+    const padX = 90;
+    const padTop = 20;
+    const padBottom = 40;
+    const vbX = -padX;
+    const vbY = -padTop;
+    const vbW = size + padX * 2;
+    const vbH = size + padTop + padBottom;
 
     // Compute axis points at angle -90° + i * 72° (pentagon, top vertex up)
     const axisPoint = (i, factor) => {
@@ -197,7 +264,7 @@ class ResultsRenderer {
 
     // Axis labels (positioned slightly past the outer ring)
     const labels = order.map((key, i) => {
-      const p = axisPoint(i, 1.18);
+      const p = axisPoint(i, 1.22);
       const m = meta[key];
       const score = Math.round(this.normalizedScores[key] || 0);
       const muted = (key === 'NPC' && disqualifiedNpc);
@@ -207,12 +274,17 @@ class ResultsRenderer {
       let anchor = 'middle';
       if (p.x > cx + 10) anchor = 'start';
       else if (p.x < cx - 10) anchor = 'end';
+      // Vertical adjustment so top and bottom labels don't crowd the polygon
+      let dy = 0;
+      if (p.y < cy - 20) dy = -8;       // top label — lift further up
+      else if (p.y > cy + 20) dy = 14;   // bottom labels — push down below the vertex
+      const labelY = p.y + dy;
       const star = isRec ? ' ★' : '';
       const warn = muted ? ' ⚠' : '';
       return `
         <g class="${cls}" text-anchor="${anchor}">
-          <text x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" class="radar-label-name">${this._escapeHtml(m.icon)} ${this._escapeHtml(m.name)}${star}${warn}</text>
-          <text x="${p.x.toFixed(1)}" y="${(p.y + 16).toFixed(1)}" class="radar-label-score">${score}%</text>
+          <text x="${p.x.toFixed(1)}" y="${labelY.toFixed(1)}" class="radar-label-name">${this._escapeHtml(m.icon)} ${this._escapeHtml(m.name)}${star}${warn}</text>
+          <text x="${p.x.toFixed(1)}" y="${(labelY + 16).toFixed(1)}" class="radar-label-score">${score}%</text>
         </g>
       `;
     }).join('');
@@ -239,7 +311,7 @@ class ResultsRenderer {
     section.innerHTML = `
       <h3>📊 Pillar Alignment Overview</h3>
       <div class="radar-chart-wrap">
-        <svg class="radar-chart" viewBox="0 0 ${size} ${size + 32}" role="img" aria-label="Radar chart of pillar alignment scores">
+        <svg class="radar-chart" viewBox="${vbX} ${vbY} ${vbW} ${vbH}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Radar chart of pillar alignment scores">
           <defs>
             <linearGradient id="radarFill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stop-color="#50e6ff" stop-opacity="0.55"/>
@@ -276,8 +348,13 @@ class ResultsRenderer {
     const card = document.createElement('div');
     card.className = `result-card${rec.recommended ? ' recommended' : ''}${rec.disqualified ? ' disqualified' : ''}`;
 
-    const badgeText = rec.recommended ? '★ Recommended' : rec.disqualified ? '⚠ Not Eligible' : 'Also Evaluated';
+    const badgeText = rec.disqualified
+      ? '⚠ Not Eligible'
+      : rec.recommended
+        ? '★ In your mix'
+        : 'Consider';
     const resources = PILLAR_RESOURCES[rec.pillar] || [];
+    const guidance = this._workloadGuidance(rec.pillar);
 
     // Build disqualification notice
     let disqualifyHtml = '';
@@ -314,6 +391,7 @@ class ResultsRenderer {
         <span>Alignment Score</span>
         <span class="result-score-value ${rec.color}">${rec.score}%</span>
       </div>
+      ${guidance ? `<p class="result-when"><strong>When:</strong> ${this._escapeHtml(guidance)}</p>` : ''}
       <p class="result-description">${this._escapeHtml(rec.description)}</p>
       <ul class="result-highlights">
         ${rec.highlights.map(h => `<li>${this._escapeHtml(h)}</li>`).join('')}
@@ -344,15 +422,17 @@ class ResultsRenderer {
 
         const subCard = document.createElement('div');
         subCard.className = `sub-pillar-card${sub.recommended ? ' recommended' : ''}`;
+        const subGuidance = this._workloadGuidance(sub.pillar);
         subCard.innerHTML = `
           <div class="sub-pillar-header">
             <span class="sub-pillar-title">${sub.icon} ${this._escapeHtml(sub.name)}</span>
-            ${sub.recommended ? '<span class="result-badge sub-badge">★ Recommended</span>' : ''}
+            ${sub.recommended ? '<span class="result-badge sub-badge">★ In your mix</span>' : ''}
           </div>
           <div class="result-score-label">
             <span>Alignment Score</span>
             <span class="result-score-value ${sub.color}">${sub.score}%</span>
           </div>
+          ${subGuidance ? `<p class="result-when"><strong>When:</strong> ${this._escapeHtml(subGuidance)}</p>` : ''}
           <p class="result-description">${this._escapeHtml(sub.description)}</p>
           <ul class="result-highlights">
             ${sub.highlights.map(h => `<li>${this._escapeHtml(h)}</li>`).join('')}
