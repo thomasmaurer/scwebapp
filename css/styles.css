@@ -531,7 +531,7 @@ body {
 }
 
 #resultsContent {
-  max-width: 440px;
+  max-width: 760px;
   width: 100%;
 }
 
@@ -712,7 +712,7 @@ body {
 
 .radar-chart {
   width: 100%;
-  max-width: 520px;
+  max-width: 760px;
   height: auto;
   display: block;
 }
@@ -751,36 +751,36 @@ body {
 }
 
 .radar-vertex.recommended {
-  fill: #ffb900;
-  stroke: #d83b01;
+  fill: #0078d4;
+  stroke: #50e6ff;
   stroke-width: 2.5;
-  filter: drop-shadow(0 0 4px rgba(255, 185, 0, 0.6));
+  filter: drop-shadow(0 0 4px rgba(0, 120, 212, 0.55));
 }
 
 .radar-axis-label .radar-label-name {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   fill: var(--text-primary);
 }
 
 .radar-axis-label .radar-label-score {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   fill: var(--text-secondary);
 }
 
 .radar-axis-label.recommended .radar-label-name {
-  fill: #5c2d91;
+  fill: #0078d4;
 }
 [data-theme="dark"] .radar-axis-label.recommended .radar-label-name {
-  fill: #b4a0ff;
+  fill: #50e6ff;
 }
 
 .radar-axis-label.recommended .radar-label-score {
-  fill: #d83b01;
+  fill: #106ebe;
 }
 [data-theme="dark"] .radar-axis-label.recommended .radar-label-score {
-  fill: #ffb900;
+  fill: #50e6ff;
 }
 
 .radar-axis-label.muted .radar-label-name,
@@ -812,8 +812,8 @@ body {
 }
 
 .radar-legend-item.recommended {
-  border-color: #ffb900;
-  background: var(--accent-orange-light);
+  border-color: var(--accent-blue);
+  background: var(--accent-blue-light);
   color: var(--text-primary);
   font-weight: 600;
 }
@@ -833,14 +833,60 @@ body {
 }
 
 .radar-legend-star {
-  color: #d83b01;
+  color: #0078d4;
 }
 [data-theme="dark"] .radar-legend-star {
-  color: #ffb900;
+  color: #50e6ff;
 }
 
 .radar-legend-warn {
   color: var(--accent-red);
+}
+
+/* Smaller radar labels on narrow screens so they don't crowd */
+@media (max-width: 560px) {
+  .radar-axis-label .radar-label-name { font-size: 12px; }
+  .radar-axis-label .radar-label-score { font-size: 11px; }
+}
+
+/* --- Cloud-mix intro (header + framing paragraph above the result cards) --- */
+.cloud-mix-intro {
+  margin: 8px 0 16px 0;
+}
+
+.cloud-mix-intro h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+}
+
+.mix-intro {
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  margin: 0;
+}
+
+/* --- "When:" workload guidance line on each result card --- */
+.result-when {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  background: var(--accent-blue-light);
+  border-left: 3px solid var(--accent-blue);
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin: 0 0 12px 0;
+  line-height: 1.45;
+}
+
+.result-when strong {
+  color: var(--accent-blue);
+  font-weight: 700;
+  margin-right: 4px;
+}
+[data-theme="dark"] .result-when strong {
+  color: #50e6ff;
 }
 
 .result-description {
