@@ -20,16 +20,22 @@ class ResultsRenderer {
    * @param {Array} recommendations - From ScoringEngine.getRecommendations()
    * @param {Array} hybridCombos - From ScoringEngine.getHybridRecommendation()
    * @param {Function} onRestart - Callback for "Start Over" button
+   * @param {number} [answeredCount]
+   * @param {Object} [normalizedScores] - Map of pillar key → 0-100 score (all 5 pillars)
    */
-  render(recommendations, hybridCombos, onRestart, answeredCount) {
+  render(recommendations, hybridCombos, onRestart, answeredCount, normalizedScores) {
     this.container.innerHTML = '';
     this.answeredCount = answeredCount || 0;
+    this.normalizedScores = normalizedScores || {};
 
     // Report header
     this._renderHeader();
 
     // Executive summary
     this._renderExecutiveSummary(recommendations, hybridCombos);
+
+    // Radar (web) chart — visual centerpiece
+    this._renderRadarChart(recommendations);
 
     // Hybrid combination banners
     for (const combo of hybridCombos) {
@@ -58,12 +64,10 @@ class ResultsRenderer {
     restartBtn.addEventListener('click', onRestart);
     this.container.appendChild(restartBtn);
 
-    // Trigger score bar animations after a frame
+    // Trigger radar polygon draw-in animation after a frame
     requestAnimationFrame(() => {
-      const fills = this.container.querySelectorAll('.result-score-fill');
-      fills.forEach(fill => {
-        fill.style.width = fill.dataset.width;
-      });
+      const polys = this.container.querySelectorAll('.radar-polygon');
+      polys.forEach(p => p.classList.add('animate-in'));
     });
   }
 
@@ -112,6 +116,148 @@ class ResultsRenderer {
     section.innerHTML = `
       <h3>📋 Executive Summary</h3>
       <p>${summaryText}</p>
+    `;
+    this.container.appendChild(section);
+  }
+
+  /**
+   * Render an SVG radar (web) chart with the 5 pillar scores plotted
+   * across a regular pentagon. Recommended pillars get a highlighted vertex;
+   * disqualified NPC gets a muted axis label.
+   */
+  _renderRadarChart(recommendations) {
+    const order = ['SPC', 'SPrC', 'NPC', 'ALC', 'ALD'];
+    const meta = {
+      SPC:  { name: 'Sovereign Public',     icon: '☁️' },
+      SPrC: { name: 'Sovereign Private',    icon: '🔒' },
+      NPC:  { name: 'National Partner',     icon: '🏛️' },
+      ALC:  { name: 'Azure Local · Conn.',  icon: '🔗' },
+      ALD:  { name: 'Azure Local · Disc.',  icon: '🛡️' }
+    };
+
+    // Build a quick lookup of recommended pillar keys (top-level + sub-pillars)
+    const recommendedKeys = new Set();
+    let disqualifiedNpc = false;
+    for (const r of recommendations) {
+      if (r.recommended) recommendedKeys.add(r.pillar);
+      if (r.pillar === 'NPC' && r.disqualified) disqualifiedNpc = true;
+      if (r.subPillars) {
+        for (const sub of r.subPillars) {
+          if (sub.recommended) recommendedKeys.add(sub.pillar);
+        }
+      }
+    }
+
+    const size = 420;
+    const cx = size / 2;
+    const cy = size / 2 + 8; // slight downward offset to leave room for top label
+    const radius = 140;
+    const n = order.length;
+
+    // Compute axis points at angle -90° + i * 72° (pentagon, top vertex up)
+    const axisPoint = (i, factor) => {
+      const angle = (-Math.PI / 2) + (i * 2 * Math.PI / n);
+      return {
+        x: cx + Math.cos(angle) * radius * factor,
+        y: cy + Math.sin(angle) * radius * factor
+      };
+    };
+
+    // Grid rings at 20/40/60/80/100
+    const rings = [0.2, 0.4, 0.6, 0.8, 1.0].map(f => {
+      const pts = order.map((_, i) => {
+        const p = axisPoint(i, f);
+        return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
+      }).join(' ');
+      return `<polygon class="radar-grid" points="${pts}" />`;
+    }).join('');
+
+    // Axis lines (spokes)
+    const spokes = order.map((_, i) => {
+      const p = axisPoint(i, 1);
+      return `<line class="radar-axis" x1="${cx}" y1="${cy}" x2="${p.x.toFixed(1)}" y2="${p.y.toFixed(1)}" />`;
+    }).join('');
+
+    // Score polygon
+    const scorePoints = order.map((key, i) => {
+      const score = Math.max(0, Math.min(100, this.normalizedScores[key] || 0));
+      const p = axisPoint(i, score / 100);
+      return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
+    }).join(' ');
+
+    // Vertex dots (highlighted for recommended pillars)
+    const vertices = order.map((key, i) => {
+      const score = Math.max(0, Math.min(100, this.normalizedScores[key] || 0));
+      const p = axisPoint(i, score / 100);
+      const isRec = recommendedKeys.has(key);
+      const cls = `radar-vertex${isRec ? ' recommended' : ''}`;
+      const r = isRec ? 6 : 4;
+      return `<circle class="${cls}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${r}" />`;
+    }).join('');
+
+    // Axis labels (positioned slightly past the outer ring)
+    const labels = order.map((key, i) => {
+      const p = axisPoint(i, 1.18);
+      const m = meta[key];
+      const score = Math.round(this.normalizedScores[key] || 0);
+      const muted = (key === 'NPC' && disqualifiedNpc);
+      const isRec = recommendedKeys.has(key);
+      const cls = `radar-axis-label${isRec ? ' recommended' : ''}${muted ? ' muted' : ''}`;
+      // Anchor based on position around the pentagon
+      let anchor = 'middle';
+      if (p.x > cx + 10) anchor = 'start';
+      else if (p.x < cx - 10) anchor = 'end';
+      const star = isRec ? ' ★' : '';
+      const warn = muted ? ' ⚠' : '';
+      return `
+        <g class="${cls}" text-anchor="${anchor}">
+          <text x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" class="radar-label-name">${this._escapeHtml(m.icon)} ${this._escapeHtml(m.name)}${star}${warn}</text>
+          <text x="${p.x.toFixed(1)}" y="${(p.y + 16).toFixed(1)}" class="radar-label-score">${score}%</text>
+        </g>
+      `;
+    }).join('');
+
+    // Legend rows
+    const legendRows = order.map(key => {
+      const m = meta[key];
+      const score = Math.round(this.normalizedScores[key] || 0);
+      const isRec = recommendedKeys.has(key);
+      const muted = (key === 'NPC' && disqualifiedNpc);
+      return `
+        <li class="radar-legend-item${isRec ? ' recommended' : ''}${muted ? ' muted' : ''}">
+          <span class="radar-legend-icon">${m.icon}</span>
+          <span class="radar-legend-name">${this._escapeHtml(m.name)}</span>
+          <span class="radar-legend-score">${score}%</span>
+          ${isRec ? '<span class="radar-legend-star">★</span>' : ''}
+          ${muted ? '<span class="radar-legend-warn">⚠</span>' : ''}
+        </li>
+      `;
+    }).join('');
+
+    const section = document.createElement('div');
+    section.className = 'radar-chart-section';
+    section.innerHTML = `
+      <h3>📊 Pillar Alignment Overview</h3>
+      <div class="radar-chart-wrap">
+        <svg class="radar-chart" viewBox="0 0 ${size} ${size + 32}" role="img" aria-label="Radar chart of pillar alignment scores">
+          <defs>
+            <linearGradient id="radarFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#50e6ff" stop-opacity="0.55"/>
+              <stop offset="100%" stop-color="#5c2d91" stop-opacity="0.45"/>
+            </linearGradient>
+            <linearGradient id="radarStroke" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#0078d4"/>
+              <stop offset="100%" stop-color="#5c2d91"/>
+            </linearGradient>
+          </defs>
+          <g class="radar-grid-group">${rings}</g>
+          <g class="radar-axis-group">${spokes}</g>
+          <polygon class="radar-polygon" points="${scorePoints}" fill="url(#radarFill)" stroke="url(#radarStroke)" />
+          <g class="radar-vertex-group">${vertices}</g>
+          <g class="radar-axis-labels">${labels}</g>
+        </svg>
+      </div>
+      <ul class="radar-legend">${legendRows}</ul>
     `;
     this.container.appendChild(section);
   }
@@ -166,10 +312,7 @@ class ResultsRenderer {
       ${disqualifyHtml}
       <div class="result-score-label">
         <span>Alignment Score</span>
-        <span>${rec.score}%</span>
-      </div>
-      <div class="result-score-bar">
-        <div class="result-score-fill ${rec.color}" data-width="${rec.score}%" style="width: 0%"></div>
+        <span class="result-score-value ${rec.color}">${rec.score}%</span>
       </div>
       <p class="result-description">${this._escapeHtml(rec.description)}</p>
       <ul class="result-highlights">
@@ -208,10 +351,7 @@ class ResultsRenderer {
           </div>
           <div class="result-score-label">
             <span>Alignment Score</span>
-            <span>${sub.score}%</span>
-          </div>
-          <div class="result-score-bar">
-            <div class="result-score-fill ${sub.color}" data-width="${sub.score}%" style="width: 0%"></div>
+            <span class="result-score-value ${sub.color}">${sub.score}%</span>
           </div>
           <p class="result-description">${this._escapeHtml(sub.description)}</p>
           <ul class="result-highlights">

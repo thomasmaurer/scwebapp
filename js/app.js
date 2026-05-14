@@ -233,8 +233,9 @@
     showScreen(resultsScreen);
     const recommendations = engine.getRecommendations();
     const hybridCombos = engine.getHybridRecommendation(recommendations);
+    const normalizedScores = engine.getNormalizedScores();
     const answeredCount = flowEngine.history.length;
-    renderer.render(recommendations, hybridCombos, handleRestart, answeredCount);
+    renderer.render(recommendations, hybridCombos, handleRestart, answeredCount, normalizedScores);
   }
 
   // ── Restart ──────────────────────────────────
@@ -268,7 +269,7 @@
     initTheme();
 
     engine = new ScoringEngine(STATEMENTS);
-    flowEngine = new FlowEngine(STATEMENTS);
+    flowEngine = new FlowEngine(STATEMENTS, engine);
     renderer = new ResultsRenderer(resultsContent);
     swipeCtrl = new SwipeController(cardContainer, handleSwipe);
 

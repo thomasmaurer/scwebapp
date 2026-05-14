@@ -361,13 +361,50 @@ class ScoringEngine {
 /**
  * FlowEngine — manages dynamic card flow based on geo and prior answers.
  * Determines which statements to show and in what order.
+ *
+ * Adaptive early-stop:
+ *   - Hard cap at MAX_QUESTIONS answered cards.
+ *   - After MIN_QUESTIONS, terminate early if the leading pillar beats
+ *     the runner-up by at least CONFIDENCE_MARGIN normalized points.
+ *   - NPC gate questions are exempt from the cap so eligibility is never
+ *     left ambiguous.
  */
 class FlowEngine {
-  constructor(statements) {
+  static MAX_QUESTIONS = 10;
+  static MIN_QUESTIONS = 6;
+  static CONFIDENCE_MARGIN = 25;
+
+  /**
+   * @param {Array} statements - The statement pool
+   * @param {ScoringEngine} [scoringEngine] - Optional reference for confidence-based stop
+   */
+  constructor(statements, scoringEngine = null) {
     this.allStatements = statements;
+    this.scoringEngine = scoringEngine;
     this.geo = null;
     this.answeredIds = new Map();  // id → 'yes'|'no'
     this.history = [];             // ordered list of statement ids answered
+  }
+
+  /** Attach a ScoringEngine after construction (used for confidence-based early-stop) */
+  setScoringEngine(scoringEngine) {
+    this.scoringEngine = scoringEngine;
+  }
+
+  /** True if we've reached a stop condition (cap or confidence). */
+  _shouldStop() {
+    const answered = this.history.length;
+    if (answered >= FlowEngine.MAX_QUESTIONS) return true;
+    if (answered >= FlowEngine.MIN_QUESTIONS && this.scoringEngine) {
+      const scores = this.scoringEngine.getNormalizedScores();
+      // Consider the three top-level pillars (SPC, SPrC, NPC) plus the
+      // sub-pillars ALC/ALD — whichever is highest wins.
+      const sorted = Object.values(scores).sort((a, b) => b - a);
+      const top = sorted[0] || 0;
+      const second = sorted[1] || 0;
+      if (top - second >= FlowEngine.CONFIDENCE_MARGIN && top > 40) return true;
+    }
+    return false;
   }
 
   /** Select a geo region — determines which statements are geo-eligible */
@@ -413,22 +450,30 @@ class FlowEngine {
     return true;
   }
 
-  /** Get the next statement to show, or null if done */
+  /** Get the next statement to show, or null if done. NPC gate questions
+   *  bypass the cap so eligibility is always determined. */
   getNextStatement() {
+    const stopping = this._shouldStop();
     for (const stmt of this.allStatements) {
       if (this.answeredIds.has(stmt.id)) continue;
-      if (this._isEligible(stmt)) return stmt;
+      if (!this._isEligible(stmt)) continue;
+      if (stopping && !stmt.npcGate) continue;
+      return stmt;
     }
     return null;
   }
 
-  /** Peek ahead to get upcoming statements (for card stack preview) */
+  /** Peek ahead to get upcoming statements (for card stack preview). Honors
+   *  the same stop conditions as getNextStatement. */
   peekNext(count) {
+    const stopping = this._shouldStop();
     const upcoming = [];
     for (const stmt of this.allStatements) {
       if (upcoming.length >= count) break;
       if (this.answeredIds.has(stmt.id)) continue;
-      if (this._isEligible(stmt)) upcoming.push(stmt);
+      if (!this._isEligible(stmt)) continue;
+      if (stopping && !stmt.npcGate) continue;
+      upcoming.push(stmt);
     }
     return upcoming;
   }
@@ -447,7 +492,8 @@ class FlowEngine {
     return id;
   }
 
-  /** Get progress as { answered, estimated } */
+  /** Get progress as { answered, estimated }. Estimated is clamped to the
+   *  MAX_QUESTIONS cap so the progress bar reflects the adaptive limit. */
   getProgress() {
     const answered = this.history.length;
     // Estimate remaining by checking eligible unanswered statements
@@ -456,7 +502,9 @@ class FlowEngine {
       if (this.answeredIds.has(stmt.id)) continue;
       if (this._isEligible(stmt)) remaining++;
     }
-    return { answered, estimated: answered + remaining };
+    const rawEstimated = answered + remaining;
+    const estimated = Math.min(rawEstimated, FlowEngine.MAX_QUESTIONS);
+    return { answered, estimated: Math.max(estimated, answered) };
   }
 
   /** Get the list of active statements (for scoring engine pool) */
